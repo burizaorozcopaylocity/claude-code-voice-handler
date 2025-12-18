@@ -31,6 +31,7 @@ from message_generator import MessageGenerator
 from deduplication import MessageDeduplicator
 from transcript_reader import TranscriptReader
 from speech_lock import SpeechLock
+from session_voice import get_session_voice_manager
 
 
 class VoiceNotificationHandler:
@@ -59,9 +60,14 @@ class VoiceNotificationHandler:
         )
         self.deduplicator = MessageDeduplicator()
         self.speech_lock = SpeechLock()  # Add speech lock for inter-process coordination
+        self.session_voice_manager = get_session_voice_manager(logger=logger)
 
         # Speech timing control
         self.min_speech_delay = 1.0
+
+        # Current session tracking for voice selection
+        self.current_session_id = None
+        self.preferred_voice = self.config.get("voice_settings", {}).get("openai_voice", "nova")
 
         # List of tools that should not trigger voice announcements
         self.silent_tools = []
@@ -107,6 +113,20 @@ class VoiceNotificationHandler:
 
         return True
 
+    def get_session_voice(self):
+        """
+        Get the voice assigned to the current session.
+
+        Returns:
+            str: Voice name for this session
+        """
+        if self.current_session_id:
+            return self.session_voice_manager.get_voice_for_session(
+                self.current_session_id,
+                preferred_voice=self.preferred_voice
+            )
+        return self.preferred_voice
+
     def speak(self, message, voice=None):
         """
         Main speech output method with inter-process locking.
@@ -126,12 +146,17 @@ class VoiceNotificationHandler:
             logger.log_debug(f"Skipping duplicate announcement: {message[:50]}...")
             return
 
+        # Use session-specific voice if no override provided
+        if voice is None:
+            voice = self.get_session_voice()
+            logger.log_debug(f"Using session voice: {voice} for session {self.current_session_id[:8] if self.current_session_id else 'None'}...")
+
         # Acquire speech lock to prevent overlapping announcements
         try:
             with self.speech_lock.acquire(min_spacing=self.min_speech_delay):
                 # Speak the message
                 self.tts_provider.speak(message, voice)
-                
+
                 # Update last speech time in state manager too (for backward compatibility)
                 self.state_manager.last_speech_time = time.time()
                 self.state_manager.save_state()
@@ -184,6 +209,13 @@ class VoiceNotificationHandler:
             if transcript_path:
                 logger.log_debug(f"UserPromptSubmit: Found transcript path: {transcript_path}")
                 logger.log_debug(f"UserPromptSubmit: Session ID: {session_id}")
+
+                # Track session ID in handler for voice selection
+                self.current_session_id = session_id
+
+                # Log the voice assigned to this session
+                session_voice = self.get_session_voice()
+                logger.log_info(f"Session {session_id[:8] if session_id else 'None'}... will use voice: {session_voice}")
 
                 # Store current session ID to track if we're in a new conversation
                 self.state_manager.current_session_id = session_id
@@ -429,10 +461,15 @@ def main():
         query=args.query
     )
 
-    # Determine tool name
+    # Determine tool name and session ID
     tool_name = args.tool
     if stdin_data and isinstance(stdin_data, dict):
         tool_name = stdin_data.get('tool_name') or tool_name
+        # Extract session ID for voice selection (all hooks provide this)
+        session_id = stdin_data.get('session_id')
+        if session_id:
+            handler.current_session_id = session_id
+            logger.log_debug(f"Session ID captured: {session_id[:8]}...")
 
     # Check if this hook should trigger voice announcements
     if not handler.should_announce(args.hook, tool_name):
