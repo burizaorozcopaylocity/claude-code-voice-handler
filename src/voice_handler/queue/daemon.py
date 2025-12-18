@@ -126,25 +126,30 @@ class VoiceDaemon:
             return True
 
         try:
-            # Start the daemon process
-            if sys.platform == 'win32':
-                # Windows: use pythonw for background
-                python_exe = sys.executable.replace('python.exe', 'pythonw.exe')
-                if not os.path.exists(python_exe):
-                    python_exe = sys.executable
+            # Get project directory and daemon script path
+            project_dir = Path(__file__).parent.parent.parent.parent
+            daemon_script = Path(__file__)  # This file
 
-                # Start detached process
+            # Start the daemon process using uv run with direct script path
+            if sys.platform == 'win32':
+                # Windows: use uv run with CREATE_NO_WINDOW
                 process = subprocess.Popen(
-                    [python_exe, '-m', 'voice_handler.queue.daemon', '--worker'],
+                    ['uv', 'run', '--project', str(project_dir),
+                     'python', str(daemon_script), '--worker'],
                     creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+                    cwd=str(project_dir),
+                    env=os.environ.copy(),  # Inherit environment (OPENAI_API_KEY)
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
             else:
-                # Unix: fork and daemonize
+                # Unix: fork and daemonize with uv run
                 process = subprocess.Popen(
-                    [sys.executable, '-m', 'voice_handler.queue.daemon', '--worker'],
+                    ['uv', 'run', '--project', str(project_dir),
+                     'python', str(daemon_script), '--worker'],
                     start_new_session=True,
+                    cwd=str(project_dir),
+                    env=os.environ.copy(),
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
@@ -235,8 +240,18 @@ def run_worker():
     daemon = VoiceDaemon(logger=logger)
     daemon._write_pid(os.getpid())
 
-    # Initialize TTS provider
-    tts = TTSProvider(logger=logger)
+    # Load configuration
+    config = {}
+    config_path = Path(__file__).parent.parent.parent.parent / "config.json"
+    if config_path.exists():
+        try:
+            config = json.loads(config_path.read_text(encoding='utf-8'))
+            logger.log_info(f"Loaded config from {config_path}")
+        except Exception as e:
+            logger.log_warning(f"Could not load config: {e}")
+
+    # Initialize TTS provider with config
+    tts = TTSProvider(config=config, logger=logger)
 
     # Create consumer with TTS callback
     consumer = QueueConsumer(logger=logger)
