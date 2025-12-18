@@ -160,11 +160,11 @@ Habla de forma clara pero con el ritmo y musicalidad del habla mexicana.
 NO traduzcas el texto, solo léelo con acento mexicano."""
 
             if self.logger:
-                self.logger.log_debug(f"Using gpt-4o-mini-tts with {accent} accent, voice: {voice}")
+                self.logger.log_debug(f"Using gpt-4o-mini-audio-preview with {accent} accent, voice: {voice}")
 
             # Use chat completions with audio modality
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini-tts",
+                model="gpt-4o-mini-audio-preview",
                 modalities=["text", "audio"],
                 audio={"voice": voice, "format": "wav"},
                 messages=[
