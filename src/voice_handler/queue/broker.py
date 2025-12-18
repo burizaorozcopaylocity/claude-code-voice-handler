@@ -183,9 +183,12 @@ class MessageBroker:
 
         try:
             # Non-blocking get with timeout
-            data = self.queue.get(timeout=timeout)
-            if data:
-                return VoiceMessage.from_dict(data)
+            raw_item = self.queue.get(timeout=timeout)
+            if raw_item:
+                message = VoiceMessage.from_dict(raw_item)
+                # Store raw item for ack/nack - SQLiteAckQueue needs the original
+                message._raw_item = raw_item
+                return message
             return None
         except Exception:
             # Queue is empty or timeout
@@ -200,7 +203,12 @@ class MessageBroker:
         """
         if self.queue is not None:
             try:
-                self.queue.ack(message.to_dict())
+                # Use the raw item from dequeue for proper ack
+                raw_item = getattr(message, '_raw_item', None)
+                if raw_item:
+                    self.queue.ack(raw_item)
+                else:
+                    self.queue.ack(message.to_dict())
             except Exception:
                 pass  # Already acked or not in queue
 
@@ -213,7 +221,12 @@ class MessageBroker:
         """
         if self.queue is not None:
             try:
-                self.queue.nack(message.to_dict())
+                # Use the raw item from dequeue for proper nack
+                raw_item = getattr(message, '_raw_item', None)
+                if raw_item:
+                    self.queue.nack(raw_item)
+                else:
+                    self.queue.nack(message.to_dict())
             except Exception:
                 pass
 
