@@ -3,6 +3,7 @@
     "tts_provider": "openai",
     "use_steerable_tts": true,
     "accent": "mexicano chilango",
+    "message_prefix": "",
     "openai_voice": "nova",
     "openai_voices": {
       "nova": "Natural and warm (default)",

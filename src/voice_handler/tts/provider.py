@@ -329,6 +329,11 @@ NO traduzcas el texto, solo léelo con acento mexicano."""
 
         message = self.format_message_for_speech(message)
 
+        # Apply message prefix if configured (e.g., "Consola VHouse dice:")
+        message_prefix = self.config.get("voice_settings", {}).get("message_prefix", "")
+        if message_prefix:
+            message = f"{message_prefix} {message}"
+
         if self.logger:
             self.logger.log_debug(f"TTS Input (after formatting): '{message}'")
 
