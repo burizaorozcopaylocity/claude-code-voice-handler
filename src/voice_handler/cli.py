@@ -129,9 +129,10 @@ Hooks:
         has_message=bool(args.message)
     )
 
-    # Initialize handler - use sync mode by default for reliability
-    # Async mode with daemon can be enabled with --async flag later
-    handler = get_handler(use_async=False)  # TODO: Fix async mode (file naming conflict)
+    # Initialize handler - use async mode by default (non-blocking)
+    # Use --sync flag for synchronous mode if needed
+    use_async = not args.sync
+    handler = get_handler(use_async=use_async)
 
     # Read stdin data
     stdin_data, stdin_text = read_stdin_data()
