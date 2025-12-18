@@ -54,7 +54,8 @@ class VoiceNotificationHandler:
         self.message_generator = MessageGenerator(
             config=self.config,
             sound_mapping=self.sound_mapping,
-            state_manager=self.state_manager
+            state_manager=self.state_manager,
+            logger=logger  # Pass logger for Qwen integration
         )
         self.deduplicator = MessageDeduplicator()
         self.speech_lock = SpeechLock()  # Add speech lock for inter-process coordination
@@ -172,21 +173,29 @@ class VoiceNotificationHandler:
         if stdin_data and isinstance(stdin_data, dict):
             session_id = stdin_data.get('session_id')
             transcript_path = stdin_data.get('transcript_path')
-            
+
+            # Extract the user's actual prompt/task description
+            user_prompt = stdin_data.get('prompt') or stdin_data.get('message') or stdin_data.get('content')
+
+            # Log full stdin for debugging
+            logger.log_debug(f"UserPromptSubmit stdin_data keys: {list(stdin_data.keys())}")
+            logger.log_debug(f"UserPromptSubmit user_prompt: {user_prompt[:100] if user_prompt else 'None'}")
+
             if transcript_path:
                 logger.log_debug(f"UserPromptSubmit: Found transcript path: {transcript_path}")
                 logger.log_debug(f"UserPromptSubmit: Session ID: {session_id}")
-                
+
                 # Store current session ID to track if we're in a new conversation
                 self.state_manager.current_session_id = session_id
-                
+
                 # Reset everything for new conversation to avoid announcing previous session's work
                 self.state_manager.reset_task_context()
                 # Mark that we want to announce the initial summary
                 self.state_manager.initial_summary_announced = False
                 self.state_manager.save_state()
-                # Return personalized acknowledgment
-                return self.message_generator.get_personalized_acknowledgment()
+
+                # Return personalized acknowledgment WITH the task context
+                return self.message_generator.get_personalized_acknowledgment(task_description=user_prompt)
         return None
 
     def process_pre_tool_use(self, stdin_data, tool_name):
@@ -265,8 +274,8 @@ class VoiceNotificationHandler:
                 # Check if this is the first response (longer initial summary)
                 if not self.state_manager.initial_summary_announced:
                     # First response - allow longer summary
-                    if len(combined_message) > 400:
-                        combined_message = reader.extract_meaningful_summary(combined_message, 400, 100)
+                    if len(combined_message) > 600:
+                        combined_message = reader.extract_meaningful_summary(combined_message, 600, 150)
                     self.state_manager.initial_summary_announced = True
                     self.state_manager.save_state()
                     return combined_message
@@ -303,8 +312,8 @@ class VoiceNotificationHandler:
                     meaningful_messages = [msg for msg in new_messages if len(msg) > 20]
                     if meaningful_messages:
                         claude_message = meaningful_messages[-1]
-                        if len(claude_message) > 200:
-                            claude_message = reader.extract_meaningful_summary(claude_message, 200, 50)
+                        if len(claude_message) > 400:
+                            claude_message = reader.extract_meaningful_summary(claude_message, 400, 100)
                         return claude_message
 
         except Exception as e:
@@ -319,7 +328,7 @@ class VoiceNotificationHandler:
             if transcript_path:
                 try:
                     reader = TranscriptReader(transcript_path)
-                    last_message = reader.get_last_message(max_length=350)
+                    last_message = reader.get_last_message(max_length=500)
 
                     if last_message:
                         # Use personalized completion with the last message
