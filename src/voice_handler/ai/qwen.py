@@ -278,7 +278,7 @@ class QwenContextGenerator:
         # Fallback to Qwen
         if self.logger:
             self.logger.log_debug("OpenAI unavailable, trying Qwen fallback...")
-        return self._call_llm(prompt, max_words)
+        return self._call_qwen(prompt, max_words)
 
     def generate_greeting(self, hour: Optional[int] = None) -> str:
         """
