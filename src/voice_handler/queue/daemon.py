@@ -132,11 +132,17 @@ class VoiceDaemon:
 
             # Start the daemon process using uv run with direct script path
             if sys.platform == 'win32':
-                # Windows: use uv run with CREATE_NO_WINDOW
+                # Windows: use CREATE_NEW_CONSOLE with hidden window (mypy approach)
+                # This avoids issues with DETACHED_PROCESS causing console popups
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags = subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = 0  # SW_HIDE
+
                 process = subprocess.Popen(
                     ['uv', 'run', '--project', str(project_dir),
                      'python', str(daemon_script), '--worker'],
-                    creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+                    creationflags=subprocess.CREATE_NEW_CONSOLE,
+                    startupinfo=startupinfo,
                     cwd=str(project_dir),
                     env=os.environ.copy(),  # Inherit environment (OPENAI_API_KEY)
                     stdout=subprocess.DEVNULL,
