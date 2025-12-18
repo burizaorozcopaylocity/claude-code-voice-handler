@@ -153,7 +153,7 @@ class MessageBroker:
         Returns:
             bool: True if successful
         """
-        if not self.queue:
+        if self.queue is None:
             if self.logger:
                 self.logger.log_warning("Queue not available, message dropped")
             return False
@@ -178,7 +178,7 @@ class MessageBroker:
         Returns:
             VoiceMessage or None if queue is empty
         """
-        if not self.queue:
+        if self.queue is None:
             return None
 
         try:
@@ -198,7 +198,7 @@ class MessageBroker:
         Args:
             message: The message that was processed
         """
-        if self.queue:
+        if self.queue is not None:
             try:
                 self.queue.ack(message.to_dict())
             except Exception:
@@ -211,7 +211,7 @@ class MessageBroker:
         Args:
             message: The message to retry
         """
-        if self.queue:
+        if self.queue is not None:
             try:
                 self.queue.nack(message.to_dict())
             except Exception:
@@ -219,7 +219,7 @@ class MessageBroker:
 
     def size(self) -> int:
         """Get the current queue size."""
-        if self.queue:
+        if self.queue is not None:
             try:
                 return self.queue.size
             except Exception:
@@ -228,7 +228,7 @@ class MessageBroker:
 
     def clear(self):
         """Clear all messages from the queue."""
-        if self.queue:
+        if self.queue is not None:
             try:
                 while self.queue.size > 0:
                     item = self.queue.get(timeout=0.1)

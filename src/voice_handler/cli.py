@@ -129,10 +129,10 @@ Hooks:
         has_message=bool(args.message)
     )
 
-    # Initialize handler - use async mode by default (non-blocking)
-    # Use --sync flag for synchronous mode if needed
-    use_async = not args.sync
-    handler = get_handler(use_async=use_async)
+    # Initialize handler - use sync mode for reliability on Windows
+    # Async mode has issues with daemon startup on Windows
+    # TODO: Fix async mode for Windows (daemon doesn't start correctly)
+    handler = get_handler(use_async=False)
 
     # Read stdin data
     stdin_data, stdin_text = read_stdin_data()
