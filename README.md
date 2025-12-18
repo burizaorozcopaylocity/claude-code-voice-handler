@@ -83,20 +83,104 @@ Add to your Claude Code settings (`~/.claude/settings.json`):
 ```json
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv sync --project ~/.claude/hooks/voice_notifications"
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
-        "type": "command",
-        "command": "python -m voice_handler --hook UserPromptSubmit"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run ~/.claude/hooks/voice_notifications/voice_handler.py --hook UserPromptSubmit"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run ~/.claude/hooks/voice_notifications/voice_handler.py --hook PreToolUse"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run ~/.claude/hooks/voice_notifications/voice_handler.py --hook PostToolUse"
+          }
+        ]
       }
     ],
     "Stop": [
       {
-        "type": "command",
-        "command": "python -m voice_handler --hook Stop"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run ~/.claude/hooks/voice_notifications/voice_handler.py --hook Stop"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run ~/.claude/hooks/voice_notifications/voice_handler.py --hook Notification"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run ~/.claude/hooks/voice_notifications/voice_handler.py --hook SubagentStop"
+          }
+        ]
       }
     ]
   }
 }
+```
+
+> **Windows users:** Replace `~/.claude` with `%USERPROFILE%\.claude` or use full paths like `C:\Users\YourName\.claude\hooks\voice_notifications`
+
+#### Why SessionStart is Critical
+
+The `SessionStart` hook with `uv sync` ensures the virtual environment is ready **before** any voice hooks fire. Without this:
+
+1. Each hook would trigger `uv run` which needs to create/verify the venv
+2. Creating a venv + downloading 29 packages takes ~10-15 seconds
+3. Claude Code hooks have a short timeout (~5 seconds)
+4. Result: Hooks timeout and voice never plays
+
+With `SessionStart`:
+```
+Claude Code starts → SessionStart fires → uv sync (instant if venv exists) → Voice hooks ready!
+```
+
+#### Manual venv initialization
+
+If you need to manually initialize or reset the venv:
+
+```bash
+cd ~/.claude/hooks/voice_notifications
+uv sync
 ```
 
 ## 📁 Project Structure

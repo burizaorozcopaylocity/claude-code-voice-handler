@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import random
 from voice_handler.ai.prompts import RockPersonality, get_rock_personality
 
 
@@ -103,14 +104,14 @@ class QwenContextGenerator:
                     ["powershell", "-Command", f"qwen-code '{escaped_prompt}'"],
                     capture_output=True,
                     text=True,
-                    timeout=15
+                    timeout=10
                 )
             else:
                 result = subprocess.run(
                     ["qwen-code", full_prompt],
                     capture_output=True,
                     text=True,
-                    timeout=15
+                    timeout=10
                 )
 
             if result.returncode == 0 and result.stdout.strip():
@@ -122,7 +123,7 @@ class QwenContextGenerator:
 
         except subprocess.TimeoutExpired:
             if self.logger:
-                self.logger.log_warning("Qwen-code timed out - the cosmic signal was lost!")
+                self.logger.log_warning("Qwen-code timeout (>10s) - usando fallback rockero")
             return None
         except Exception as e:
             if self.logger:
@@ -155,7 +156,10 @@ class QwenContextGenerator:
         )
 
         response = self._call_qwen(prompt, max_words=15)
-        return response or f"Hey {self.user_nickname}, let's rock!"
+        if response:
+            return response
+        # Fallback: usar saludo pre-definido de RockPersonality
+        return self.rock_personality.get_greeting(time_context, self.user_nickname)
 
     def generate_acknowledgment(self, task_description: Optional[str] = None) -> str:
         """
@@ -175,7 +179,10 @@ class QwenContextGenerator:
         )
 
         response = self._call_qwen(prompt, max_words=30)
-        return response or f"On it, {self.user_nickname}!"
+        if response:
+            return response
+        # Fallback: usar frase de acknowledgment pre-definida
+        return self.rock_personality.get_acknowledgment(self.user_nickname)
 
     def generate_tool_announcement(
         self,
@@ -243,7 +250,10 @@ class QwenContextGenerator:
         )
 
         response = self._call_qwen(prompt, max_words=25)
-        return response or f"Done, {self.user_nickname}! Another brick in the wall."
+        if response:
+            return response
+        # Fallback: usar frase de completion pre-definida
+        return self.rock_personality.get_completion_phrase()
 
     def generate_approval_request(
         self,
@@ -279,7 +289,10 @@ class QwenContextGenerator:
             )
 
         response = self._call_qwen(prompt, max_words=20)
-        return response or f"Hey {self.user_nickname}, I need your approval here!"
+        if response:
+            return response
+        # Fallback: usar frase de approval pre-definida
+        return self.rock_personality.get_approval_phrase(self.user_nickname)
 
     def generate_error_message(
         self,
@@ -310,7 +323,10 @@ class QwenContextGenerator:
             )
 
         response = self._call_qwen(prompt, max_words=20)
-        return response or f"Hit a snag, {self.user_nickname}. Let me check this out."
+        if response:
+            return response
+        # Fallback: usar frase de error pre-definida
+        return self.rock_personality.get_error_phrase()
 
     def enrich_message(
         self,

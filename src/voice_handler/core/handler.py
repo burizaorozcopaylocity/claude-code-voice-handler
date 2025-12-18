@@ -72,9 +72,12 @@ class VoiceNotificationHandler:
         # Speech timing control
         self.min_speech_delay = 1.0
 
-        # Current session tracking
-        self.current_session_id: Optional[str] = None
+        # Current session tracking - load from state if available
+        self.current_session_id: Optional[str] = self.state_manager.current_session_id
         self.preferred_voice = self.config.get("voice_settings", {}).get("openai_voice", "nova")
+
+        if self.current_session_id:
+            self.logger.log_debug(f"Loaded session_id from state: {self.current_session_id[:8]}...")
 
         # Active voice hooks
         self.active_voice_hooks = {

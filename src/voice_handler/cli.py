@@ -199,7 +199,7 @@ Hooks:
     # Default messages for specific hooks
     if not message:
         if args.hook == "Stop":
-            message = "Done"
+            message = "Listo"
         elif args.hook in ["PostToolUse", "PreToolUse"]:
             sys.exit(0)
 

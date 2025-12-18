@@ -134,11 +134,21 @@ El usuario se llama {nickname}. Es el guitarrista principal de esta session.
 
     # Approval request phrases
     APPROVAL_PHRASES: List[str] = [
-        "Hey {nickname}! El roadie necesita tu visto bueno!",
+        "¡Hey {nickname}! El roadie necesita tu visto bueno!",
         "{nickname}, momento de decidir - como elegir el setlist!",
-        "Guitarrista principal! Necesito tu aprobacion aqui!",
+        "¡Guitarrista principal! Necesito tu aprobacion aqui!",
         "{nickname}, tu opinion es crucial para el encore!",
         "Como Jimmy Page eligiendo solos - tu decides, {nickname}!",
+    ]
+
+    # Acknowledgment phrases (when user submits a task)
+    ACKNOWLEDGMENT_PHRASES: List[str] = [
+        "¡En eso, {nickname}! Preparando el backline.",
+        "¡Shine on, {nickname}! Claude va a rockear esto.",
+        "¡Entendido, {nickname}! El show comienza.",
+        "¡A la orden, {nickname}! Vamos a crear magia.",
+        "¡Recibido, {nickname}! Como Gilmour afinando.",
+        "¡Dale, {nickname}! El setlist esta listo.",
     ]
 
     # Greeting by time of day
@@ -198,6 +208,12 @@ El usuario se llama {nickname}. Es el guitarrista principal de esta session.
         greetings = cls.GREETINGS.get(time_of_day, cls.GREETINGS["tarde"])
         greeting = random.choice(greetings)
         return greeting.format(nickname=nickname)
+
+    @classmethod
+    def get_acknowledgment(cls, nickname: str = "rockstar") -> str:
+        """Get a random acknowledgment phrase."""
+        phrase = random.choice(cls.ACKNOWLEDGMENT_PHRASES)
+        return phrase.format(nickname=nickname)
 
     @classmethod
     def get_acknowledgment_prompt(cls, task: str, nickname: str = "rockstar") -> str:
