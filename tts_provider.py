@@ -168,7 +168,7 @@ Return only the compressed text, without any explanation or introduction."""
                 model="tts-1",
                 voice=voice,
                 input=compressed_message,
-                speed=1.0,
+                speed=0.95,  # Slightly slower for clarity
             )
             
             # Create temporary file

@@ -7,25 +7,47 @@ import random
 from pathlib import Path
 from datetime import datetime
 
+# Import Qwen context generator
+try:
+    from qwen_context import QwenContextGenerator
+    QWEN_AVAILABLE = True
+except ImportError:
+    QWEN_AVAILABLE = False
+
 
 class MessageGenerator:
     """
     Generates contextual messages with personality modes.
+    Now enhanced with Qwen AI for dynamic, context-aware messages.
     """
-    
-    def __init__(self, config=None, sound_mapping=None, state_manager=None):
+
+    def __init__(self, config=None, sound_mapping=None, state_manager=None, logger=None):
         """
         Initialize message generator.
-        
+
         Args:
             config (dict): Voice configuration
             sound_mapping (dict): Sound mapping configuration
             state_manager: StateManager instance for task context
+            logger: Logger instance for debugging
         """
         self.config = config or {}
         self.sound_mapping = sound_mapping or {}
         self.state_manager = state_manager
-        
+        self.logger = logger
+
+        # Initialize Qwen context generator if available
+        self.qwen = None
+        self.use_qwen = self.config.get("voice_settings", {}).get("use_qwen_context", True)
+        if QWEN_AVAILABLE and self.use_qwen:
+            try:
+                self.qwen = QwenContextGenerator(config=self.config, logger=logger)
+                if logger:
+                    logger.log_info("Qwen context generator initialized")
+            except Exception as e:
+                if logger:
+                    logger.log_error("Failed to initialize Qwen", exception=e)
+
         # Natural action phrases for tools
         self.tool_action_phrases = {
             "Read": "Reading",
@@ -307,17 +329,32 @@ class MessageGenerator:
             # Generic completion message
             return f"Completed: {task}"
     
-    def get_personalized_acknowledgment(self):
+    def get_personalized_acknowledgment(self, task_description=None):
         """
         Generate a personalized initial acknowledgment with user's name.
-        
+        Uses Qwen for dynamic context when available.
+
+        Args:
+            task_description (str, optional): Brief description of the task
+
         Returns:
             str: Personalized acknowledgment message
         """
+        # Try Qwen first for dynamic, contextual response
+        if self.qwen and self.qwen.qwen_available:
+            try:
+                qwen_response = self.qwen.generate_acknowledgment(task_description)
+                if qwen_response:
+                    return qwen_response
+            except Exception as e:
+                if self.logger:
+                    self.logger.log_error("Qwen acknowledgment failed", exception=e)
+
+        # Fallback to static messages
         user_nickname = self.config.get("voice_settings", {}).get("user_nickname")
         personality = self.get_personality_mode()
         current_personality = self.config.get("voice_settings", {}).get("personality", "friendly_professional")
-        
+
         # Get appropriate acknowledgment based on personality
         if current_personality == "butler":
             if user_nickname:
@@ -327,6 +364,10 @@ class MessageGenerator:
             if user_nickname:
                 return f"Hey {user_nickname}, on it"
             return "Hey there, on it"
+        elif current_personality == "rockstar":
+            if user_nickname:
+                return f"Let's rock, {user_nickname}! On it"
+            return "Let's rock! On it"
         else:  # friendly_professional
             if user_nickname:
                 greeting = self.get_time_aware_greeting(include_name=False)
@@ -336,27 +377,51 @@ class MessageGenerator:
     def get_personalized_completion(self, summary=None):
         """
         Generate a personalized task completion message.
-        
+        Uses Qwen for dynamic context when available.
+
         Args:
             summary (str, optional): Task summary to include
-            
+
         Returns:
             str: Personalized completion message or None if no work done
         """
-        user_nickname = self.config.get("voice_settings", {}).get("user_nickname")
-        personality = self.get_personality_mode()
-        current_personality = self.config.get("voice_settings", {}).get("personality", "friendly_professional")
-        
         # Get base completion message
         if summary:
             base_message = summary
         else:
             base_message = self.get_task_summary()
-        
+
         # If no work was done (base_message is None), return None to skip announcement
         if not base_message:
             return None
-        
+
+        # Get task context for Qwen
+        files_modified = 0
+        commands_run = 0
+        if self.state_manager:
+            task_context = self.state_manager.task_context
+            files_modified = len(set(task_context.get("files_modified", [])))
+            commands_run = len(task_context.get("commands_run", []))
+
+        # Try Qwen first for dynamic, contextual response
+        if self.qwen and self.qwen.qwen_available:
+            try:
+                qwen_response = self.qwen.generate_completion(
+                    summary=base_message,
+                    files_modified=files_modified,
+                    commands_run=commands_run
+                )
+                if qwen_response:
+                    return qwen_response
+            except Exception as e:
+                if self.logger:
+                    self.logger.log_error("Qwen completion failed", exception=e)
+
+        # Fallback to static messages
+        user_nickname = self.config.get("voice_settings", {}).get("user_nickname")
+        personality = self.get_personality_mode()
+        current_personality = self.config.get("voice_settings", {}).get("personality", "friendly_professional")
+
         # Add personalized touch based on personality
         if current_personality == "butler":
             if user_nickname:
@@ -366,6 +431,10 @@ class MessageGenerator:
             if user_nickname:
                 return f"{base_message}. All done, {user_nickname}"
             return f"{base_message}. All done"
+        elif current_personality == "rockstar":
+            if user_nickname:
+                return f"{base_message}. Another brick in the wall, {user_nickname}!"
+            return f"{base_message}. Another brick in the wall!"
         else:  # friendly_professional
             if user_nickname:
                 return f"{base_message}. Task completed, {user_nickname}"
@@ -374,13 +443,25 @@ class MessageGenerator:
     def get_approval_request_message(self, tool_name=None):
         """
         Generate a message for approval/confirmation requests.
-        
+        Uses Qwen for dynamic context when available.
+
         Args:
             tool_name (str, optional): Name of the tool requiring approval
-            
+
         Returns:
             str: Approval request message with user's name and tool details
         """
+        # Try Qwen first for dynamic, contextual response
+        if self.qwen and self.qwen.qwen_available:
+            try:
+                qwen_response = self.qwen.generate_approval_request(tool_name=tool_name)
+                if qwen_response:
+                    return qwen_response
+            except Exception as e:
+                if self.logger:
+                    self.logger.log_error("Qwen approval request failed", exception=e)
+
+        # Fallback to static messages
         user_nickname = self.config.get("voice_settings", {}).get("user_nickname")
         current_personality = self.config.get("voice_settings", {}).get("personality", "friendly_professional")
         
