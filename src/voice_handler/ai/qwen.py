@@ -408,7 +408,7 @@ class QwenContextGenerator:
     def generate_approval_request(
         self,
         tool_name: Optional[str] = None,
-        action_description: Optional[str] = None
+        context: Optional[str] = None
     ) -> str:
         """
         Generate message when Claude needs user approval.
@@ -417,20 +417,23 @@ class QwenContextGenerator:
 
         Args:
             tool_name: Tool requiring approval
-            action_description: What action needs approval
+            context: Full context of what needs approval (the notification message)
 
         Returns:
             Contextual approval request
         """
-        if tool_name:
+        if context:
+            # Use the full context to generate a meaningful message
+            prompt = (
+                f"Claude necesita aprobación de {self.user_nickname}. "
+                f"El mensaje dice: '{context}'. "
+                f"Resume brevemente QUÉ necesita aprobar (archivo, comando, etc) "
+                f"en máximo 15 palabras con tu estilo rockero."
+            )
+        elif tool_name:
             prompt = (
                 f"El roadie necesita permiso de {self.user_nickname} "
                 f"para usar {tool_name}. Pidelo de forma breve pero urgente."
-            )
-        elif action_description:
-            prompt = (
-                f"Necesito permiso de {self.user_nickname} para: {action_description}. "
-                f"Pidelo brevemente."
             )
         else:
             prompt = (
@@ -438,7 +441,7 @@ class QwenContextGenerator:
                 f"Hay algo que aprobar."
             )
 
-        response = self._call_llm(prompt, max_words=20)
+        response = self._call_llm(prompt, max_words=25)
         if response:
             return response
         # Fallback: usar frase de approval pre-definida

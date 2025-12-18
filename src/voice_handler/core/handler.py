@@ -390,16 +390,20 @@ class VoiceNotificationHandler:
         self.logger.log_info("Processing Notification hook", stdin_data=stdin_data)
 
         message = ""
+        tool_name = None
+        context = None
+
         if stdin_data and isinstance(stdin_data, dict):
             message = stdin_data.get('message', '')
+            # Extract tool name if present
+            if "permission to use" in message.lower():
+                parts = message.split("permission to use")
+                if len(parts) > 1:
+                    tool_name = parts[1].strip().split()[0] if parts[1].strip() else None
+            # Use the full message as context for the LLM
+            context = message if message else None
 
-        if "permission to use" in message:
-            parts = message.split("permission to use")
-            if len(parts) > 1:
-                tool_name = parts[1].strip()
-                return self.qwen.generate_approval_request(tool_name=tool_name)
-
-        return self.qwen.generate_approval_request()
+        return self.qwen.generate_approval_request(tool_name=tool_name, context=context)
 
     def _format_todo_completion(self, task: str) -> str:
         """
