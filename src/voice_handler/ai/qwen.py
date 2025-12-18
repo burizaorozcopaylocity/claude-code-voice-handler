@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Qwen AI Integration - The Cosmic Lyricist.
+AI Context Generator - The Cosmic Lyricist.
 
 Like having a legendary songwriter who crafts perfect lyrics for every moment,
-Qwen generates contextual, rock-infused voice messages.
+this module generates contextual, rock-infused voice messages.
 
-Cosmic Eddie speaks through Qwen, bringing the spirit of psychedelic rock
-to every announcement!
+Cosmic Eddie speaks through OpenAI (primary) or Qwen (fallback),
+bringing the spirit of psychedelic rock to every announcement!
 """
 
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -16,20 +17,28 @@ from pathlib import Path
 from typing import Optional
 
 import random
+from openai import OpenAI
 from voice_handler.ai.prompts import RockPersonality, get_rock_personality
 
 
 class QwenContextGenerator:
     """
-    Generates contextual messages using qwen-code CLI.
+    Generates contextual messages using OpenAI (primary) or Qwen CLI (fallback).
 
-    Falls back to simple messages if qwen-code is unavailable.
+    OpenAI gpt-4o-mini is ultra-fast (~0.5-2s) and cheap.
+    Maintains conversation history per session for contextual responses.
+    Falls back to qwen-code CLI if OpenAI is unavailable.
+    Falls back to pre-defined phrases if both fail.
+
     Cosmic Eddie's voice comes through here!
     """
 
+    # Maximum messages to keep in history (to avoid token limits)
+    MAX_HISTORY_MESSAGES = 20
+
     def __init__(self, config: Optional[dict] = None, logger=None):
         """
-        Initialize Qwen context generator.
+        Initialize context generator.
 
         Args:
             config: Voice configuration
@@ -37,6 +46,10 @@ class QwenContextGenerator:
         """
         self.config = config or {}
         self.logger = logger
+
+        # Check available LLM providers
+        self.openai_client = self._init_openai()
+        self.openai_available = self.openai_client is not None
         self.qwen_available = self._check_qwen_available()
 
         # Get user nickname and personality from config
@@ -46,11 +59,77 @@ class QwenContextGenerator:
         # Initialize rock personality
         self.rock_personality = get_rock_personality()
 
+        # Session chat history for contextual responses
+        self.chat_history_file = self._get_history_file_path()
+        self.chat_history: list = self._load_chat_history()
+
         if self.logger:
             self.logger.log_info(
-                f"Qwen initialized - Cosmic Eddie ready to rock! "
-                f"(qwen_available={self.qwen_available})"
+                f"AI Context Generator ready! "
+                f"(openai={self.openai_available}, qwen={self.qwen_available}, "
+                f"history_msgs={len(self.chat_history)})"
             )
+
+    def _get_history_file_path(self) -> Path:
+        """Get path for chat history file."""
+        if sys.platform == 'win32':
+            temp_dir = os.environ.get('TEMP', 'C:\\Temp')
+        else:
+            temp_dir = '/tmp'
+        return Path(temp_dir) / 'claude_voice_chat_history.json'
+
+    def _load_chat_history(self) -> list:
+        """Load chat history from file."""
+        if self.chat_history_file.exists():
+            try:
+                import json
+                with open(self.chat_history_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    return data.get('messages', [])[-self.MAX_HISTORY_MESSAGES:]
+            except Exception:
+                pass
+        return []
+
+    def _save_chat_history(self):
+        """Save chat history to file."""
+        try:
+            import json
+            # Keep only last N messages
+            self.chat_history = self.chat_history[-self.MAX_HISTORY_MESSAGES:]
+            with open(self.chat_history_file, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'messages': self.chat_history,
+                    'updated_at': datetime.now().isoformat()
+                }, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            if self.logger:
+                self.logger.log_warning(f"Failed to save chat history: {e}")
+
+    def _add_to_history(self, role: str, content: str):
+        """Add a message to chat history."""
+        self.chat_history.append({
+            'role': role,
+            'content': content
+        })
+        self._save_chat_history()
+
+    def clear_history(self):
+        """Clear chat history for new session."""
+        self.chat_history = []
+        self._save_chat_history()
+        if self.logger:
+            self.logger.log_info("Chat history cleared - new session!")
+
+    def _init_openai(self) -> Optional[OpenAI]:
+        """Initialize OpenAI client if API key is available."""
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if api_key:
+            try:
+                return OpenAI(api_key=api_key)
+            except Exception as e:
+                if self.logger:
+                    self.logger.log_warning(f"Failed to init OpenAI: {e}")
+        return None
 
     def _check_qwen_available(self) -> bool:
         """Check if qwen-code is available on the system."""
@@ -73,9 +152,62 @@ class QwenContextGenerator:
         except Exception:
             return False
 
+    def _call_openai(self, prompt: str, max_words: int = 30, add_to_history: bool = True) -> Optional[str]:
+        """
+        Call OpenAI gpt-4o-mini with conversation history for contextual responses.
+
+        Args:
+            prompt: The prompt to send
+            max_words: Maximum words in response
+            add_to_history: Whether to add this exchange to history
+
+        Returns:
+            OpenAI's response or None if failed
+        """
+        if not self.openai_available:
+            return None
+
+        try:
+            system_prompt = self.rock_personality.get_system_prompt(self.user_nickname)
+
+            # Build messages with history for context
+            messages = [{"role": "system", "content": system_prompt}]
+
+            # Add conversation history
+            for msg in self.chat_history:
+                messages.append(msg)
+
+            # Add current prompt
+            user_message = f"{prompt}\n\n(Responde en máximo {max_words} palabras)"
+            messages.append({"role": "user", "content": user_message})
+
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                max_tokens=100,
+                temperature=0.8,
+                timeout=5  # 5 second timeout for speed
+            )
+
+            result = response.choices[0].message.content.strip()
+
+            # Save to history for context in future calls
+            if add_to_history:
+                self._add_to_history("user", prompt)
+                self._add_to_history("assistant", result)
+
+            if self.logger:
+                self.logger.log_debug(f"OpenAI response (history={len(self.chat_history)}): {result}")
+            return result
+
+        except Exception as e:
+            if self.logger:
+                self.logger.log_warning(f"OpenAI call failed: {e}")
+            return None
+
     def _call_qwen(self, prompt: str, max_words: int = 30) -> Optional[str]:
         """
-        Call qwen-code with a prompt.
+        Call qwen-code CLI as fallback.
 
         Args:
             prompt: The prompt to send to qwen
@@ -88,17 +220,14 @@ class QwenContextGenerator:
             return None
 
         try:
-            # Build the full prompt with rock personality system prompt
-            system_context = self.rock_personality.get_system_prompt()
+            system_context = self.rock_personality.get_system_prompt(self.user_nickname)
             full_prompt = (
                 f"{system_context}\n\n"
-                f"Usuario: {self.user_nickname}\n"
                 f"Tarea: {prompt}\n\n"
                 f"Responde en maximo {max_words} palabras."
             )
 
             if sys.platform == 'win32':
-                # Escape quotes for PowerShell
                 escaped_prompt = full_prompt.replace("'", "''")
                 result = subprocess.run(
                     ["powershell", "-Command", f"qwen-code '{escaped_prompt}'"],
@@ -123,12 +252,33 @@ class QwenContextGenerator:
 
         except subprocess.TimeoutExpired:
             if self.logger:
-                self.logger.log_warning("Qwen-code timeout (>10s) - usando fallback rockero")
+                self.logger.log_warning("Qwen-code timeout (>10s)")
             return None
         except Exception as e:
             if self.logger:
                 self.logger.log_error("Error calling qwen-code", exception=e)
             return None
+
+    def _call_llm(self, prompt: str, max_words: int = 30) -> Optional[str]:
+        """
+        Call LLM with OpenAI as primary and Qwen as fallback.
+
+        Args:
+            prompt: The prompt to send
+            max_words: Maximum words in response
+
+        Returns:
+            LLM response or None if all providers failed
+        """
+        # Try OpenAI first (fast!)
+        response = self._call_openai(prompt, max_words)
+        if response:
+            return response
+
+        # Fallback to Qwen
+        if self.logger:
+            self.logger.log_debug("OpenAI unavailable, trying Qwen fallback...")
+        return self._call_llm(prompt, max_words)
 
     def generate_greeting(self, hour: Optional[int] = None) -> str:
         """
@@ -155,7 +305,7 @@ class QwenContextGenerator:
             f"Es de {time_context}. Usa referencia musical."
         )
 
-        response = self._call_qwen(prompt, max_words=15)
+        response = self._call_llm(prompt, max_words=15)
         if response:
             return response
         # Fallback: usar saludo pre-definido de RockPersonality
@@ -178,7 +328,7 @@ class QwenContextGenerator:
             self.user_nickname
         )
 
-        response = self._call_qwen(prompt, max_words=30)
+        response = self._call_llm(prompt, max_words=30)
         if response:
             return response
         # Fallback: usar frase de acknowledgment pre-definida
@@ -209,7 +359,7 @@ class QwenContextGenerator:
         else:
             prompt = f"Claude va a {metaphor}. Anuncia brevemente."
 
-        response = self._call_qwen(prompt, max_words=15)
+        response = self._call_llm(prompt, max_words=15)
         return response or f"{metaphor.capitalize()}..."
 
     def generate_completion(
@@ -249,7 +399,7 @@ class QwenContextGenerator:
             f"con una frase de encore rockero."
         )
 
-        response = self._call_qwen(prompt, max_words=25)
+        response = self._call_llm(prompt, max_words=25)
         if response:
             return response
         # Fallback: usar frase de completion pre-definida
@@ -288,7 +438,7 @@ class QwenContextGenerator:
                 f"Hay algo que aprobar."
             )
 
-        response = self._call_qwen(prompt, max_words=20)
+        response = self._call_llm(prompt, max_words=20)
         if response:
             return response
         # Fallback: usar frase de approval pre-definida
@@ -322,7 +472,7 @@ class QwenContextGenerator:
                 f"Informalo a {self.user_nickname} sin alarma."
             )
 
-        response = self._call_qwen(prompt, max_words=20)
+        response = self._call_llm(prompt, max_words=20)
         if response:
             return response
         # Fallback: usar frase de error pre-definida
@@ -351,7 +501,7 @@ class QwenContextGenerator:
             f"con personalidad rockera: '{original_message[:150]}'"
         )
 
-        response = self._call_qwen(prompt, max_words=35)
+        response = self._call_llm(prompt, max_words=35)
         return response or original_message
 
 

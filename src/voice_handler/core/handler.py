@@ -230,12 +230,13 @@ class VoiceNotificationHandler:
             f"will use voice: {session_voice}"
         )
 
-        # Reset task context for new prompt
+        # Reset task context and chat history for new prompt
         self.state_manager.reset_task_context()
         self.state_manager.initial_summary_announced = False
         self.state_manager.save_state()
+        self.qwen.clear_history()  # Clear LLM chat history for fresh context
 
-        # Generate personalized acknowledgment with Qwen
+        # Generate personalized acknowledgment with AI
         # Works with or without transcript_path
         return self.qwen.generate_acknowledgment(task_description=user_prompt)
 

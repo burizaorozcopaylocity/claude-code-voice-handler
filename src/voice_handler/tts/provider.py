@@ -129,6 +129,79 @@ Return only the compressed text, without any explanation or introduction."""
         message = message.replace('.md', ' markdown file')
         return message
 
+    def speak_with_openai_steerable(self, message: str, voice: str = "nova") -> bool:
+        """
+        Generate speech using gpt-4o-mini-tts with Mexican accent steering.
+
+        The premium experience - full control over accent and emotion!
+
+        Args:
+            message: Text to speak
+            voice: OpenAI voice selection
+
+        Returns:
+            True if successful, False if failed
+        """
+        if not self.openai_client:
+            return False
+
+        if len(message.strip()) < 3:
+            return True
+
+        try:
+            # Get accent config
+            accent = self.config.get("voice_settings", {}).get("accent", "mexicano")
+
+            # System prompt for Mexican accent
+            accent_prompt = f"""Eres un locutor de radio mexicano.
+Habla con acento {accent} natural y auténtico.
+Usa entonación mexicana, con las inflexiones características del español de México.
+Habla de forma clara pero con el ritmo y musicalidad del habla mexicana.
+NO traduzcas el texto, solo léelo con acento mexicano."""
+
+            if self.logger:
+                self.logger.log_debug(f"Using gpt-4o-mini-tts with {accent} accent, voice: {voice}")
+
+            # Use chat completions with audio modality
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o-mini-tts",
+                modalities=["text", "audio"],
+                audio={"voice": voice, "format": "wav"},
+                messages=[
+                    {"role": "system", "content": accent_prompt},
+                    {"role": "user", "content": message}
+                ]
+            )
+
+            # Extract audio data
+            audio_data = response.choices[0].message.audio.data
+
+            # Decode base64 audio and save to temp file
+            import base64
+            audio_bytes = base64.b64decode(audio_data)
+
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                temp_filename = temp_file.name
+                temp_file.write(audio_bytes)
+
+            # Play audio
+            data, samplerate = sf.read(temp_filename)
+            sd.play(data, samplerate)
+            sd.wait()
+
+            # Clean up
+            os.unlink(temp_filename)
+
+            if self.logger:
+                self.logger.log_tts_event("OpenAI-Steerable", True, voice=voice, text=message)
+
+            return True
+
+        except Exception as e:
+            if self.logger:
+                self.logger.log_warning(f"Steerable TTS failed: {e}, falling back to basic TTS")
+            return False
+
     def speak_with_openai(self, message: str, voice: str = "nova") -> bool:
         """
         Generate and play speech using OpenAI's TTS API.
@@ -245,6 +318,7 @@ Return only the compressed text, without any explanation or introduction."""
         Main speech output method with automatic provider selection.
 
         The main show - pick the best mic and let it rip!
+        Priority: Steerable TTS (accent) → Basic TTS → System TTS
 
         Args:
             message: Message to speak
@@ -259,14 +333,23 @@ Return only the compressed text, without any explanation or introduction."""
             self.logger.log_debug(f"TTS Input (after formatting): '{message}'")
 
         tts_provider = self.config.get("voice_settings", {}).get("tts_provider", "openai")
+        use_steerable = self.config.get("voice_settings", {}).get("use_steerable_tts", True)
 
-        # Try OpenAI TTS first if available (default behavior when API key is set)
         if self.openai_client and (tts_provider == "openai" or tts_provider == "auto"):
             openai_voice = voice or self.config.get("voice_settings", {}).get("openai_voice", "nova")
+
+            # Try steerable TTS first (with Mexican accent)
+            if use_steerable:
+                if self.speak_with_openai_steerable(message, openai_voice):
+                    return
+                if self.logger:
+                    self.logger.log_debug("Steerable TTS failed, trying basic OpenAI TTS")
+
+            # Fallback to basic OpenAI TTS
             if self.speak_with_openai(message, openai_voice):
                 return
             if self.logger:
                 self.logger.log_info("Falling back to system TTS")
 
-        # Use system TTS
+        # Use system TTS as last resort
         self.speak_with_system(message, voice)

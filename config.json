@@ -1,6 +1,8 @@
 {
   "voice_settings": {
     "tts_provider": "openai",
+    "use_steerable_tts": true,
+    "accent": "mexicano chilango",
     "openai_voice": "nova",
     "openai_voices": {
       "nova": "Natural and warm (default)",
