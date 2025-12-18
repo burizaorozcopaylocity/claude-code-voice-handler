@@ -1,0 +1,98 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-voice-handler"
+version = "2.0.0"
+description = "Voice notifications for Claude Code with OpenAI TTS, Qwen AI context, and async processing"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [
+    {name = "Mark Hilton", email = "mark@example.com"},
+    {name = "Bernard Uriza", email = "burizaorozco@paylocity.com"},
+]
+keywords = [
+    "claude-code",
+    "voice",
+    "tts",
+    "openai",
+    "notifications",
+    "hooks",
+    "qwen",
+    "async",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "openai>=1.0.0",
+    "sounddevice>=0.4.6",
+    "soundfile>=0.12.1",
+    "numpy>=1.24.0",
+    "persist-queue[extra]>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "httpx>=0.25.0",  # For Ollama API calls
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+qwen = [
+    # qwen-code is installed separately via npm
+]
+
+[project.scripts]
+voice-handler = "voice_handler.cli:main"
+voice-daemon = "voice_handler.queue.daemon:main"
+
+[project.urls]
+Homepage = "https://github.com/burizaorozcopaylocity/claude-code-voice-handler"
+Repository = "https://github.com/burizaorozcopaylocity/claude-code-voice-handler"
+Issues = "https://github.com/burizaorozcopaylocity/claude-code-voice-handler/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+voice_handler = ["*.json"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+addopts = "-v --import-mode=importlib --cov=src/voice_handler --cov-report=term-missing"
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

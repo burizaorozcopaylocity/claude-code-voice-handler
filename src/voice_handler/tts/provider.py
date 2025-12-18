@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-Text-to-speech provider abstraction - handles both OpenAI and system TTS.
+TTS Provider - The Sound Engineer.
+
+Like the sound engineer who ensures every note reaches the audience crystal clear,
+this module handles text-to-speech output with multiple provider support.
 """
 
 import os
 import subprocess
 import platform
 import tempfile
-import time
 from pathlib import Path
+from typing import Optional
 
 # Optional imports for OpenAI TTS
 try:
@@ -24,51 +27,52 @@ except ImportError:
 class TTSProvider:
     """
     Manages text-to-speech output with multiple provider support.
+
+    The sound engineer who makes sure the voice hits every speaker in the arena!
     """
-    
-    def __init__(self, config=None, logger=None):
+
+    def __init__(self, config: Optional[dict] = None, logger=None):
         """
         Initialize TTS provider with configuration.
-        
+
         Args:
-            config (dict): Voice configuration
+            config: Voice configuration
             logger: Logger instance
         """
         self.config = config or {}
         self.logger = logger
         self.openai_client = None
-        
+
         # Initialize OpenAI client if available and configured
         if OPENAI_AVAILABLE and os.environ.get("OPENAI_API_KEY"):
             try:
                 self.openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
                 if self.logger:
-                    self.logger.log_info("OpenAI client initialized successfully")
+                    self.logger.log_info("OpenAI client initialized - sound check complete!")
             except Exception as e:
                 if self.logger:
                     self.logger.log_error("Failed to initialize OpenAI client", exception=e)
                 self.openai_client = None
-    
-    def compress_text_for_speech(self, text):
+
+    def compress_text_for_speech(self, text: str) -> str:
         """
         Use GPT-4o-mini to compress verbose text for natural speech.
-        
+
         Args:
-            text (str): Original text to compress
-            
+            text: Original text to compress
+
         Returns:
-            str: Compressed, speech-optimized text
+            Compressed, speech-optimized text
         """
         if not self.openai_client:
             return text
-        
-        # Skip compression for short messages (under 50 characters)
-        # These are already concise and compression may actually expand them
+
+        # Skip compression for short messages
         if len(text) < 50:
             if self.logger:
                 self.logger.log_debug(f"Skipping compression for short message ({len(text)} chars)")
             return text
-            
+
         try:
             prompt = f"""You are an assistant that makes long technical responses more concise for voice output.
 Your task is to rephrase the following text to be shorter and more conversational,
@@ -80,7 +84,7 @@ IMPORTANT HANDLING FOR CODE BLOCKS:
 - Instead, briefly mention "I've created code for X" or "Here's a script that does Y"
 - For large code blocks, just say something like "I've written a Python function that handles user authentication"
 - DO NOT attempt to read out the actual code syntax
-- Only describe what the code does in 1 sentences maximum
+- Only describe what the code does in 1 sentence maximum
 
 Original text:
 {text}
@@ -93,76 +97,74 @@ Return only the compressed text, without any explanation or introduction."""
                 temperature=0.1,
                 max_tokens=1024,
             )
-            
+
             compressed = response.choices[0].message.content
-            
+
             if self.logger:
                 self.logger.log_debug(f"Compressed text from {len(text)} to {len(compressed)} chars")
-            
+
             return compressed
-            
+
         except Exception as e:
             if self.logger:
                 self.logger.log_error("Error compressing text", exception=e)
             return text
-    
-    def format_message_for_speech(self, message):
+
+    def format_message_for_speech(self, message: str) -> str:
         """
         Format technical text for natural speech output.
-        
+
         Args:
-            message (str): Technical message text
-            
+            message: Technical message text
+
         Returns:
-            str: Speech-formatted message
+            Speech-formatted message
         """
         # Replace underscores and hyphens
         message = message.replace('_', ' ').replace('-', ' ')
-        # Replace file extensions (process .json before .js to avoid conflicts)
+        # Replace file extensions
         message = message.replace('.py', ' python file')
         message = message.replace('.json', ' JSON file')
         message = message.replace('.js', ' javascript file')
         message = message.replace('.md', ' markdown file')
         return message
-    
-    def speak_with_openai(self, message, voice="nova"):
+
+    def speak_with_openai(self, message: str, voice: str = "nova") -> bool:
         """
         Generate and play speech using OpenAI's TTS API.
-        
+
+        The headliner performance - crystal clear audio from the cloud!
+
         Args:
-            message (str): Text to speak
-            voice (str): OpenAI voice selection
-            
+            message: Text to speak
+            voice: OpenAI voice selection
+
         Returns:
-            bool: True if successful, False if failed
+            True if successful, False if failed
         """
         if not self.openai_client:
             if self.logger:
                 self.logger.log_debug("OpenAI client not available, falling back to system TTS")
             return False
-        
-        # Skip very short messages (under 3 characters) as they're likely not meaningful
+
+        # Skip very short messages
         if len(message.strip()) < 3:
             if self.logger:
                 self.logger.log_debug(f"Skipping very short message: '{message}'")
-            return True  # Return true to avoid fallback
-            
+            return True
+
         try:
-            # Log original message
             if self.logger:
                 self.logger.log_info(f"OpenAI TTS Original text: '{message}'")
-            
+
             # Compress the message for better speech
             compressed_message = self.compress_text_for_speech(message)
-            
-            # Log compressed message if different from original
+
             if self.logger:
                 if compressed_message != message:
                     self.logger.log_info(f"OpenAI TTS Compressed text: '{compressed_message}'")
-                else:
-                    self.logger.log_debug("OpenAI TTS: No compression needed (message unchanged)")
                 self.logger.log_debug(f"Using OpenAI TTS with voice: {voice}")
-            
+
             # Generate speech
             response = self.openai_client.audio.speech.create(
                 model="tts-1",
@@ -170,98 +172,101 @@ Return only the compressed text, without any explanation or introduction."""
                 input=compressed_message,
                 speed=0.95,  # Slightly slower for clarity
             )
-            
+
             # Create temporary file
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
                 temp_filename = temp_file.name
-                # Write the audio content to file
                 for chunk in response.iter_bytes():
                     temp_file.write(chunk)
-            
+
             # Play audio
             data, samplerate = sf.read(temp_filename)
             sd.play(data, samplerate)
             sd.wait()
-            
+
             # Clean up
             os.unlink(temp_filename)
-            
+
             if self.logger:
                 self.logger.log_tts_event("OpenAI", True, voice=voice, text=compressed_message)
-            
+
             return True
-            
+
         except Exception as e:
             if self.logger:
                 self.logger.log_tts_event("OpenAI", False, voice=voice, error=str(e))
             return False
-    
-    def speak_with_system(self, message, voice=None):
+
+    def speak_with_system(self, message: str, voice: Optional[str] = None):
         """
         Use system TTS (macOS say, Linux espeak, Windows SAPI).
-        
+
+        The backup PA system - always reliable!
+
         Args:
-            message (str): Text to speak
-            voice (str, optional): System voice selection
+            message: Text to speak
+            voice: System voice selection
         """
         system = platform.system()
-        
+
         if not voice:
             voice = self.config.get("voice_settings", {}).get("default_voice", "Samantha")
-        
+
         try:
             if system == "Darwin":  # macOS
                 cmd = ["say", "-v", voice]
-                # Add speech rate if configured
                 rate = self.config.get("voice_settings", {}).get("speech_rate")
                 if rate:
                     cmd.extend(["-r", str(rate)])
                 cmd.append(message)
                 subprocess.run(cmd, check=True)
+
             elif system == "Linux":
                 subprocess.run(["espeak", message], check=True)
+
             elif system == "Windows":
-                ps_command = f'Add-Type -AssemblyName System.speech; $speak = New-Object System.Speech.Synthesis.SpeechSynthesizer; $speak.Speak("{message}")'
+                ps_command = (
+                    f'Add-Type -AssemblyName System.speech; '
+                    f'$speak = New-Object System.Speech.Synthesis.SpeechSynthesizer; '
+                    f'$speak.Speak("{message}")'
+                )
                 subprocess.run(["powershell", "-Command", ps_command], check=True)
-            
+
             if self.logger:
                 self.logger.log_tts_event("System", True, voice=voice, text=message)
-                
+
         except subprocess.CalledProcessError as e:
             if self.logger:
                 self.logger.log_tts_event("System", False, voice=voice, error=str(e))
             raise
-    
-    def speak(self, message, voice=None):
+
+    def speak(self, message: str, voice: Optional[str] = None):
         """
         Main speech output method with automatic provider selection.
-        
+
+        The main show - pick the best mic and let it rip!
+
         Args:
-            message (str): Message to speak
-            voice (str, optional): Override voice selection
+            message: Message to speak
+            voice: Override voice selection
         """
-        # Log the original message before formatting
         if self.logger:
             self.logger.log_debug(f"TTS Input (before formatting): '{message}'")
-        
-        # Format message
+
         message = self.format_message_for_speech(message)
-        
-        # Log the formatted message
+
         if self.logger:
             self.logger.log_debug(f"TTS Input (after formatting): '{message}'")
-        
-        # Get TTS provider from config
-        tts_provider = self.config.get("voice_settings", {}).get("tts_provider", "system")
-        
-        # Try OpenAI TTS first if configured
-        if tts_provider == "openai" and OPENAI_AVAILABLE:
+
+        tts_provider = self.config.get("voice_settings", {}).get("tts_provider", "openai")
+
+        # Try OpenAI TTS first if available (default behavior when API key is set)
+        if self.openai_client and (tts_provider == "openai" or tts_provider == "auto"):
             openai_voice = voice or self.config.get("voice_settings", {}).get("openai_voice", "nova")
             if self.speak_with_openai(message, openai_voice):
                 return
-            # Fall back to system TTS if OpenAI fails
             if self.logger:
                 self.logger.log_info("Falling back to system TTS")
-        
+
         # Use system TTS
         self.speak_with_system(message, voice)

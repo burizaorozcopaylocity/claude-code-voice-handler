@@ -106,6 +106,9 @@ notes/
 TODO.txt
 NOTES.txt
 
+# Legacy code (keeping locally for reference)
+legacy/
+
 # Claude Code specific
 .claude/
 claude_voice_output/
