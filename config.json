@@ -1,8 +1,12 @@
 {
+  "queue_settings": {
+    "max_retries": 3,
+    "retry_backoff_base": 0.5
+  },
   "voice_settings": {
     "tts_provider": "openai",
-    "use_steerable_tts": true,
-    "accent": "mexicano chilango",
+    "use_steerable_tts": false,
+    "accent": "",
     "message_prefix": "",
     "openai_voice": "nova",
     "openai_voices": {
@@ -16,8 +20,8 @@
     "fallback_voice": "Ralph",
     "fallback_speech_rate": 180,
 
-    "personality": "butler",
-    "user_nickname": "Mark"
+    "personality": "friendly_professional",
+    "user_nickname": "Bernard"
   },
   "personality_modes": {
     "friendly_professional": {

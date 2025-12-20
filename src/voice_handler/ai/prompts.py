@@ -164,6 +164,30 @@ El usuario es {nickname}. Dirígete a él de forma profesional.
         ],
     }
 
+    # Session start greetings by source type
+    SESSION_START_GREETINGS: Dict[str, List[str]] = {
+        "startup": [
+            "Sistema iniciado, {nickname}.",
+            "Claude Code activo.",
+            "Listo para desarrollar.",
+        ],
+        "resume": [
+            "Sesión reanudada.",
+            "Continuando trabajo.",
+            "De vuelta al código.",
+        ],
+        "clear": [
+            "Sesión reiniciada.",
+            "Contexto limpio.",
+            "Nuevo comienzo.",
+        ],
+        "compact": [
+            "Sesión optimizada.",
+            "Continuando.",
+            "Todo listo.",
+        ],
+    }
+
     @classmethod
     def get_system_prompt(cls, nickname: str = "rockstar") -> str:
         """Get the system prompt with the user's nickname."""
@@ -199,6 +223,13 @@ El usuario es {nickname}. Dirígete a él de forma profesional.
         return greeting.format(nickname=nickname)
 
     @classmethod
+    def get_session_greeting(cls, source: str, nickname: str = "rockstar") -> str:
+        """Get a source-appropriate session start greeting."""
+        greetings = cls.SESSION_START_GREETINGS.get(source, cls.SESSION_START_GREETINGS["startup"])
+        greeting = random.choice(greetings)
+        return greeting.format(nickname=nickname)
+
+    @classmethod
     def get_acknowledgment(cls, nickname: str = "rockstar") -> str:
         """Get a random acknowledgment phrase."""
         phrase = random.choice(cls.ACKNOWLEDGMENT_PHRASES)
@@ -213,14 +244,13 @@ El usuario es {nickname}. Dirígete a él de forma profesional.
         COMMENT on what Claude will do, not execute anything.
         """
         return f"""
-{nickname} le pidio a Claude Code: "{task[:150]}"
+{nickname} le pidió a Claude Code: "{task[:150]}"
 
-Tu trabajo es SOLO dar una opinion rockera de 15-20 palabras sobre esta tarea.
-NO ejecutes nada, solo COMENTA como un roadie anunciando el siguiente track.
-Usa referencias al rock psicodelico de los 70s.
-Menciona lo que Claude VA A HACER (no lo que TU haras).
+Tu trabajo es SOLO dar una confirmación profesional de 10-15 palabras sobre esta tarea.
+NO ejecutes nada, solo CONFIRMA lo que Claude VA A HACER de manera breve y clara.
+Usa un tono profesional y directo. No uses metáforas ni referencias culturales.
 
-Ejemplo: "Shine on! Claude va a refactorizar ese modulo como Gilmour afinando para Comfortably Numb!"
+Ejemplo: "Entendido. Claude procederá a implementar la funcionalidad solicitada."
 """
 
 

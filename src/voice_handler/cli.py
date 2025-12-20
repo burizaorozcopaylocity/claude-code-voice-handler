@@ -85,7 +85,7 @@ Hooks:
     )
     parser.add_argument(
         "--hook",
-        help="Hook type (UserPromptSubmit, PreToolUse, PostToolUse, Stop, Notification)"
+        help="Hook type (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, Notification)"
     )
     parser.add_argument(
         "--tool",
@@ -118,6 +118,11 @@ Hooks:
 
     # Initialize logger and handler
     logger = get_logger()
+
+    # Print status to stdout for visibility
+    import os
+    print(f"🎸 Voice Handler - Hook: {args.hook or 'None'}")
+    print(f"   TTS: {os.getenv('TTS_PROVIDER', 'system')} | Lang: {os.getenv('LANGUAGE', 'es')} | API Key: {'✓' if os.getenv('OPENAI_API_KEY') else '✗'}")
 
     logger.log_info(
         "Voice handler invoked - The show begins!",
@@ -158,6 +163,7 @@ Hooks:
 
     # Check if this hook should trigger voice announcements
     if not handler.should_announce(args.hook, tool_name):
+        print(f"   ⚠️  Hook '{args.hook}' does not trigger voice (logged only)")
         logger.log_info(f"Hook {args.hook} logged only (no voice announcement)")
         sys.exit(0)
 
@@ -174,7 +180,12 @@ Hooks:
     # Process hook-specific logic
     message = None
 
-    if args.hook == "UserPromptSubmit":
+    if args.hook == "SessionStart":
+        message = handler.process_session_start(stdin_data)
+        if not message:
+            message = "Sistema listo"  # Fallback
+
+    elif args.hook == "UserPromptSubmit":
         message = handler.process_user_prompt_submit(stdin_data)
 
     elif args.hook == "PreToolUse":
@@ -207,7 +218,11 @@ Hooks:
     # Speak the message if we have one
     if message:
         logger.log_message_flow("Speaking", message)
+        # Print message preview
+        msg_preview = message[:60] + "..." if len(message) > 60 else message
+        print(f"   ✓ Queued: {msg_preview}")
         handler.speak(message, voice=args.voice)
+        print(f"   🎵 Message sent to TTS daemon")
 
 
 if __name__ == "__main__":

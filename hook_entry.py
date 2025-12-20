@@ -39,12 +39,28 @@ try:
 
     if __name__ == "__main__":
         main()
+except ImportError as e:
+    # Import errors should be visible - print to stderr so Claude Code can see them
+    import sys
+    import traceback
+    print(f"ERROR: Failed to import voice_handler: {e}", file=sys.stderr)
+
+    # Still log for debugging
+    log_path = Path(__file__).parent / "logs" / "hook_errors.log"
+    log_path.parent.mkdir(exist_ok=True)
+    with open(log_path, "a") as f:
+        from datetime import datetime
+        f.write(f"\n[{datetime.now().isoformat()}] Import Error:\n")
+        traceback.print_exc(file=f)
+
+    sys.exit(1)  # Exit with error code
 except Exception as e:
-    # Log error for debugging
+    # Other runtime errors can stay silent for hook execution
+    # This allows hooks to fail gracefully without blocking Claude Code
     import traceback
     log_path = Path(__file__).parent / "logs" / "hook_errors.log"
     log_path.parent.mkdir(exist_ok=True)
     with open(log_path, "a") as f:
         from datetime import datetime
-        f.write(f"\n[{datetime.now().isoformat()}] Error:\n")
+        f.write(f"\n[{datetime.now().isoformat()}] Runtime Error:\n")
         traceback.print_exc(file=f)

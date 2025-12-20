@@ -233,6 +233,13 @@ def run_worker():
 
     This is the main entry point when running as a daemon.
     """
+    # CRITICAL: Load .env FIRST before any imports
+    from dotenv import load_dotenv
+    from pathlib import Path as EnvPath
+    env_path = EnvPath.home() / ".claude" / "hooks" / "voice_notifications" / ".env"
+    if env_path.exists():
+        load_dotenv(env_path, override=True)
+
     from voice_handler.queue.consumer import QueueConsumer
     from voice_handler.queue.broker import get_broker
     from voice_handler.tts.provider import TTSProvider
@@ -259,8 +266,17 @@ def run_worker():
     # Initialize TTS provider with config
     tts = TTSProvider(config=config, logger=logger)
 
-    # Create consumer with TTS callback
-    consumer = QueueConsumer(logger=logger)
+    # Get queue settings from config
+    queue_config = config.get("queue_settings", {})
+    max_retries = queue_config.get("max_retries", 3)
+    retry_backoff_base = queue_config.get("retry_backoff_base", 0.5)
+
+    # Create consumer with TTS callback and retry config
+    consumer = QueueConsumer(
+        logger=logger,
+        max_retries=max_retries,
+        retry_backoff_base=retry_backoff_base,
+    )
     consumer.set_speak_callback(lambda text, voice: tts.speak(text, voice))
 
     # Set up signal handlers

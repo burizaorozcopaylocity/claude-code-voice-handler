@@ -64,6 +64,11 @@ class VoiceMessage:
             self.timestamp = time.time()
         if self.metadata is None:
             self.metadata = {}
+        # Initialize retry tracking
+        if 'retry_count' not in self.metadata:
+            self.metadata['retry_count'] = 0
+        if 'last_retry_time' not in self.metadata:
+            self.metadata['last_retry_time'] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for queue storage."""
@@ -224,6 +229,8 @@ class MessageBroker:
                 # Use the raw item from dequeue for proper nack
                 raw_item = getattr(message, '_raw_item', None)
                 if raw_item:
+                    # CRITICAL: Update raw item with current metadata
+                    raw_item['metadata'] = message.metadata
                     self.queue.nack(raw_item)
                 else:
                     self.queue.nack(message.to_dict())

@@ -184,13 +184,28 @@ NO traduzcas el texto, solo léelo con acento mexicano."""
                 temp_filename = temp_file.name
                 temp_file.write(audio_bytes)
 
-            # Play audio
-            data, samplerate = sf.read(temp_filename)
-            sd.play(data, samplerate)
-            sd.wait()
-
-            # Clean up
-            os.unlink(temp_filename)
+            # Play audio - use afplay on macOS for better background compatibility
+            if platform.system() == 'Darwin':
+                # macOS: use native afplay (works in daemon background)
+                if self.logger:
+                    self.logger.log_debug(f"Playing audio with afplay: {temp_filename}")
+                # Run afplay in foreground and wait for completion
+                result = subprocess.run(['afplay', temp_filename], check=False, capture_output=True, text=True)
+                if self.logger:
+                    if result.returncode != 0:
+                        self.logger.log_error(f"afplay failed with code {result.returncode}: {result.stderr}")
+                    else:
+                        self.logger.log_debug(f"afplay completed successfully (took {result.returncode} seconds)")
+                # Wait a bit before cleanup to ensure audio finished
+                import time
+                time.sleep(0.5)
+                os.unlink(temp_filename)
+            else:
+                # Other platforms: use sounddevice
+                data, samplerate = sf.read(temp_filename)
+                sd.play(data, samplerate)
+                sd.wait()
+                os.unlink(temp_filename)
 
             if self.logger:
                 self.logger.log_tts_event("OpenAI-Steerable", True, voice=voice, text=message)
@@ -252,13 +267,28 @@ NO traduzcas el texto, solo léelo con acento mexicano."""
                 for chunk in response.iter_bytes():
                     temp_file.write(chunk)
 
-            # Play audio
-            data, samplerate = sf.read(temp_filename)
-            sd.play(data, samplerate)
-            sd.wait()
-
-            # Clean up
-            os.unlink(temp_filename)
+            # Play audio - use afplay on macOS for better background compatibility
+            if platform.system() == 'Darwin':
+                # macOS: use native afplay (works in daemon background)
+                if self.logger:
+                    self.logger.log_debug(f"Playing audio with afplay: {temp_filename}")
+                # Run afplay in foreground and wait for completion
+                result = subprocess.run(['afplay', temp_filename], check=False, capture_output=True, text=True)
+                if self.logger:
+                    if result.returncode != 0:
+                        self.logger.log_error(f"afplay failed with code {result.returncode}: {result.stderr}")
+                    else:
+                        self.logger.log_debug(f"afplay completed successfully (took {result.returncode} seconds)")
+                # Wait a bit before cleanup to ensure audio finished
+                import time
+                time.sleep(0.5)
+                os.unlink(temp_filename)
+            else:
+                # Other platforms: use sounddevice
+                data, samplerate = sf.read(temp_filename)
+                sd.play(data, samplerate)
+                sd.wait()
+                os.unlink(temp_filename)
 
             if self.logger:
                 self.logger.log_tts_event("OpenAI", True, voice=voice, text=compressed_message)

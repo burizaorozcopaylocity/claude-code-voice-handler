@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Optional
 
 import random
-from openai import OpenAI
 from voice_handler.ai.prompts import RockPersonality, get_rock_personality
 
 
@@ -120,16 +119,29 @@ class QwenContextGenerator:
         if self.logger:
             self.logger.log_info("Chat history cleared - new session!")
 
-    def _init_openai(self) -> Optional[OpenAI]:
+    def _init_openai(self):
         """Initialize OpenAI client if API key is available."""
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if api_key:
-            try:
-                return OpenAI(api_key=api_key)
-            except Exception as e:
+        try:
+            # Lazy import - only import when actually needed
+            from openai import OpenAI
+
+            api_key = os.environ.get("OPENAI_API_KEY")
+            if not api_key:
                 if self.logger:
-                    self.logger.log_warning(f"Failed to init OpenAI: {e}")
-        return None
+                    self.logger.log_debug("OpenAI API key not found")
+                return None
+
+            return OpenAI(api_key=api_key)
+        except ImportError as e:
+            # OpenAI package not installed - graceful degradation
+            if self.logger:
+                self.logger.log_debug(f"OpenAI not available (module not found): {e}")
+            return None
+        except Exception as e:
+            # Other errors (invalid API key, network issues, etc.)
+            if self.logger:
+                self.logger.log_warning(f"Failed to init OpenAI: {e}")
+            return None
 
     def _check_qwen_available(self) -> bool:
         """Check if qwen-code is available on the system."""
@@ -318,6 +330,41 @@ class QwenContextGenerator:
             return response
         # Fallback: usar saludo pre-definido de RockPersonality
         return self.rock_personality.get_greeting(time_context, self.user_nickname)
+
+    def generate_session_greeting(self, source: str = "startup") -> str:
+        """
+        Generate contextual greeting for SessionStart hook.
+
+        Args:
+            source: Session start source type (startup|resume|clear|compact)
+
+        Returns:
+            Contextual greeting message based on source
+        """
+        hour = datetime.now().hour
+        time_context = (
+            "madrugada" if hour < 6 else
+            "mañana" if hour < 12 else
+            "tarde" if hour < 19 else
+            "noche"
+        )
+
+        # Source-specific prompts
+        prompts = {
+            "startup": f"Es de {time_context}. Claude Code inicia. Saluda a {self.user_nickname} con energía rockera.",
+            "resume": f"Claude Code retoma sesión. Saluda a {self.user_nickname} como retorno del intermedio.",
+            "clear": f"Sesión reiniciada. Saluda a {self.user_nickname} como roadie preparando nuevo show.",
+            "compact": f"Sesión optimizada. Breve confirmación a {self.user_nickname} de que todo sigue activo."
+        }
+
+        prompt = prompts.get(source, prompts["startup"])
+        response = self._call_llm(prompt, max_words=15)
+
+        if response:
+            return response
+
+        # Fallback: use existing greeting method
+        return self.generate_greeting(hour=hour)
 
     def generate_acknowledgment(self, task_description: Optional[str] = None) -> str:
         """

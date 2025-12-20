@@ -82,6 +82,7 @@ class VoiceNotificationHandler:
 
         # Active voice hooks
         self.active_voice_hooks = {
+            "SessionStart",
             "UserPromptSubmit",
             "PreToolUse",
             "PostToolUse",
@@ -204,6 +205,57 @@ class VoiceNotificationHandler:
                 return True
 
         return True
+
+    def process_session_start(self, stdin_data: Optional[dict]) -> Optional[str]:
+        """
+        Process SessionStart hook.
+
+        The opening curtain - welcome the audience to the show!
+
+        SessionStart is called when a session begins with data like:
+        {
+            "source": "startup|resume|clear|compact",
+            "session_id": "...",
+            "transcript_path": "...",
+            ...
+        }
+
+        Args:
+            stdin_data: Data from stdin containing source and session_id
+
+        Returns:
+            Contextual greeting message based on session source
+        """
+        if not stdin_data or not isinstance(stdin_data, dict):
+            return None
+
+        session_id = stdin_data.get('session_id')
+        source = stdin_data.get('source', 'startup')
+
+        self.logger.log_debug(
+            f"SessionStart - source: {source}, session_id: {session_id[:8] if session_id else 'None'}..."
+        )
+
+        # Set session ID for voice assignment
+        if session_id:
+            self.current_session_id = session_id
+            self.state_manager.current_session_id = session_id
+            self.state_manager.save_state()
+
+        # Get session voice (will assign new voice if first time)
+        session_voice = self.get_session_voice()
+        self.logger.log_info(
+            f"SessionStart: Session {session_id[:8] if session_id else 'None'}... "
+            f"assigned voice: {session_voice} (source: {source})"
+        )
+
+        # Reset task context for fresh session
+        if source in ['startup', 'clear']:
+            self.state_manager.reset_task_context()
+            self.qwen.clear_history()
+
+        # Generate contextual greeting based on source
+        return self.qwen.generate_session_greeting(source=source)
 
     def process_user_prompt_submit(self, stdin_data: Optional[dict]) -> Optional[str]:
         """
