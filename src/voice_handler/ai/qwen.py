@@ -152,7 +152,7 @@ class QwenContextGenerator:
         except Exception:
             return False
 
-    def _call_openai(self, prompt: str, max_words: int = 30, add_to_history: bool = True) -> Optional[str]:
+    def _call_openai(self, prompt: str, max_words: int = 20, add_to_history: bool = True) -> Optional[str]:
         """
         Call OpenAI gpt-4o-mini with conversation history for contextual responses.
 
@@ -205,7 +205,7 @@ class QwenContextGenerator:
                 self.logger.log_warning(f"OpenAI call failed: {e}")
             return None
 
-    def _call_qwen(self, prompt: str, max_words: int = 30) -> Optional[str]:
+    def _call_qwen(self, prompt: str, max_words: int = 20) -> Optional[str]:
         """
         Call qwen-code CLI as fallback.
 
@@ -259,7 +259,7 @@ class QwenContextGenerator:
                 self.logger.log_error("Error calling qwen-code", exception=e)
             return None
 
-    def _call_llm(self, prompt: str, max_words: int = 30) -> Optional[str]:
+    def _call_llm(self, prompt: str, max_words: int = 20) -> Optional[str]:
         """
         Call LLM with OpenAI as primary and Qwen as fallback.
 
@@ -278,7 +278,15 @@ class QwenContextGenerator:
         # Fallback to Qwen
         if self.logger:
             self.logger.log_debug("OpenAI unavailable, trying Qwen fallback...")
-        return self._call_qwen(prompt, max_words)
+        response = self._call_qwen(prompt, max_words)
+        
+        # HARD LIMIT: Enforce max_words regardless of LLM response
+        if response:
+            words = response.split()
+            if len(words) > max_words:
+                response = ' '.join(words[:max_words]) + '...'
+        
+        return response
 
     def generate_greeting(self, hour: Optional[int] = None) -> str:
         """
@@ -328,7 +336,7 @@ class QwenContextGenerator:
             self.user_nickname
         )
 
-        response = self._call_llm(prompt, max_words=30)
+        response = self._call_llm(prompt, max_words=20)
         if response:
             return response
         # Fallback: usar frase de acknowledgment pre-definida
@@ -399,7 +407,7 @@ class QwenContextGenerator:
             f"con una frase de encore rockero."
         )
 
-        response = self._call_llm(prompt, max_words=25)
+        response = self._call_llm(prompt, max_words=20)
         if response:
             return response
         # Fallback: usar frase de completion pre-definida
@@ -441,7 +449,7 @@ class QwenContextGenerator:
                 f"Hay algo que aprobar."
             )
 
-        response = self._call_llm(prompt, max_words=25)
+        response = self._call_llm(prompt, max_words=20)
         if response:
             return response
         # Fallback: usar frase de approval pre-definida
@@ -504,7 +512,7 @@ class QwenContextGenerator:
             f"con personalidad rockera: '{original_message[:150]}'"
         )
 
-        response = self._call_llm(prompt, max_words=35)
+        response = self._call_llm(prompt, max_words=20)
         return response or original_message
 
 

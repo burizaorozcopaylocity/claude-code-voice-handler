@@ -67,6 +67,9 @@ class PersonalityConfig:
 @dataclass
 class RuntimeConfig:
     """Runtime behavior settings."""
+    voice_enabled: bool = field(
+        default_factory=lambda: os.getenv("VOICE_ENABLED", "true").lower() == "true"
+    )
     use_async_queue: bool = field(
         default_factory=lambda: os.getenv("USE_ASYNC_QUEUE", "true").lower() == "true"
     )
@@ -144,3 +147,8 @@ def get_llm_provider() -> str:
 def is_debug_mode() -> bool:
     """Check if debug mode is enabled."""
     return get_config().runtime.debug_mode
+
+
+def is_voice_enabled() -> bool:
+    """Check if voice announcements are enabled."""
+    return get_config().runtime.voice_enabled

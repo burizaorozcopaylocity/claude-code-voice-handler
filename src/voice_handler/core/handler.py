@@ -23,6 +23,7 @@ from voice_handler.queue.producer import get_producer
 from voice_handler.queue.daemon import VoiceDaemon
 from voice_handler.ai.qwen import get_qwen_generator
 from voice_handler.ai.prompts import get_rock_personality
+from voice_handler.config import is_voice_enabled
 
 
 class VoiceNotificationHandler:
@@ -128,6 +129,17 @@ class VoiceNotificationHandler:
             voice: Override voice selection
             priority: Message priority (1-10, higher = more urgent)
         """
+        # Check if voice is enabled - early exit if disabled
+        if not is_voice_enabled():
+            self.logger.log_debug("Voice disabled (VOICE_ENABLED=false) - clearing queue and exiting")
+            # Clear any pending messages in the queue when voice is disabled
+            if self.use_async and hasattr(self, 'producer'):
+                try:
+                    self.producer.clear_queue()
+                except Exception as e:
+                    self.logger.log_warning(f"Failed to clear queue: {e}")
+            return
+
         if isinstance(message, dict):
             message = (
                 message.get('message') or

@@ -146,6 +146,26 @@ class QueueProducer:
             priority=10,
         )
 
+    def clear_queue(self) -> bool:
+        """
+        Clear all pending messages from the queue.
+        
+        Useful when voice is disabled to prevent playing old messages
+        when voice is re-enabled.
+        
+        Returns:
+            bool: True if queue was cleared successfully
+        """
+        try:
+            self.broker.clear()
+            if self.logger:
+                self.logger.log_info("Voice queue cleared")
+            return True
+        except Exception as e:
+            if self.logger:
+                self.logger.log_error("Failed to clear queue", exception=e)
+            return False
+
     def queue_size(self) -> int:
         """Get current queue size."""
         return self.broker.size()
