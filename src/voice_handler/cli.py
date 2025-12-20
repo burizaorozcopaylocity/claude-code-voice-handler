@@ -134,9 +134,17 @@ Hooks:
         has_message=bool(args.message)
     )
 
-    # Initialize handler - use async mode (non-blocking)
-    # Uses CREATE_NEW_CONSOLE + hidden window approach from mypy
-    use_async = not args.sync
+    # Determine async mode: CLI flag overrides env var
+    # Priority: 1) --sync flag, 2) USE_ASYNC_QUEUE env var, 3) default to async
+    if args.sync:
+        use_async = False
+        logger.log_info("Using SYNC mode (from --sync flag)")
+    else:
+        # Read from environment variable (os already imported above)
+        env_async = os.getenv('USE_ASYNC_QUEUE', 'true').lower()
+        use_async = env_async in ('true', '1', 'yes')
+        logger.log_info(f"Using {'ASYNC' if use_async else 'SYNC'} mode (from USE_ASYNC_QUEUE={env_async})")
+
     handler = get_handler(use_async=use_async)
 
     # Read stdin data

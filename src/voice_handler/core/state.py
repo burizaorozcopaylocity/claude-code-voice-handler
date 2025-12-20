@@ -37,7 +37,8 @@ class StateManager:
 
         self.state_file = Path(state_file_path)
         self.state = self._load_state()
-        self.task_context = self.state.get('task_context', self._get_default_task_context())
+        loaded_context = self.state.get('task_context', {})
+        self.task_context = self._validate_and_merge_task_context(loaded_context)
         self.last_speech_time = self.state.get('last_speech_time', 0)
         self.last_todos = self.state.get('last_todos', [])
         self.initial_summary_announced = self.state.get('initial_summary_announced', False)
@@ -59,6 +60,28 @@ class StateManager:
             "start_time": datetime.now().isoformat(),
             "operations_count": 0
         }
+
+    def _validate_and_merge_task_context(self, task_context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate task_context has all required keys, merge with defaults if incomplete.
+
+        Handles corrupted state files where task_context exists but is empty or missing keys.
+
+        Args:
+            task_context: Task context from state file (may be incomplete)
+
+        Returns:
+            Valid task_context with all required keys
+        """
+        defaults = self._get_default_task_context()
+
+        if not task_context:
+            return defaults
+
+        validated = defaults.copy()
+        validated.update(task_context)
+
+        return validated
 
     def _load_state(self) -> Dict[str, Any]:
         """

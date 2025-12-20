@@ -3,10 +3,15 @@
     "max_retries": 3,
     "retry_backoff_base": 0.5
   },
+  "message_limits": {
+    "max_words": 50,
+    "max_chars": 300,
+    "truncate_suffix": "..."
+  },
   "voice_settings": {
     "tts_provider": "openai",
-    "use_steerable_tts": false,
-    "accent": "",
+    "use_steerable_tts": true,
+    "accent": "mexicano chilango",
     "message_prefix": "",
     "openai_voice": "nova",
     "openai_voices": {

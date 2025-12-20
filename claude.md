@@ -121,6 +121,32 @@ tail -f /tmp/claude_voice.log
 - Max size: 10MB (auto-rotates to `.log.old`)
 - Format: `YYYY-MM-DD HH:MM:SS | LEVEL | function | message`
 
+## Development Mode vs Normal Mode
+
+### Normal Mode (Default - Recommended)
+- **When to use**: Regular day-to-day usage
+- **Config**: `DEV_MODE=false` in `.env`
+- **Processes**: 1 daemon worker process
+- **Auto-reload**: Disabled (requires manual daemon restart for code changes)
+- **Overhead**: Minimal CPU and memory usage
+
+### Development Mode (Auto-Reload)
+- **When to use**: ONLY when actively developing/debugging the voice handler code
+- **Config**: `DEV_MODE=true` in `.env`
+- **Processes**: 2 processes (1 supervisor + 1 worker)
+- **Auto-reload**: Enabled - automatically restarts on .py file changes
+- **Overhead**: Higher CPU usage due to file watching
+- **IMPORTANT**: Disable after development session to prevent unnecessary overhead
+
+### Switching Modes
+1. Edit `.env` and change `DEV_MODE=true` or `DEV_MODE=false`
+2. Restart daemon:
+   ```bash
+   pkill -f daemon.py
+   cd ~/.claude/hooks/voice_notifications
+   PYTHONPATH=src python3.14 src/voice_handler/queue/daemon.py --start
+   ```
+
 ## Development
 
 ### Dependencies
@@ -147,6 +173,80 @@ cd ~/.claude/hooks/voice_notifications
 uv run python -m voice_handler.queue.daemon --start
 uv run python -m voice_handler.queue.daemon --stop
 ```
+
+### Development Mode (Auto-Reload) ✨
+
+**NEW: No more restarting your Mac!** Auto-reload watches code changes and restarts daemon automatically.
+
+#### Quick Start
+```bash
+cd ~/.claude/hooks/voice_notifications
+uv sync --extra dev  # Install watchdog (one-time)
+uv run python -m voice_handler.queue.daemon --dev
+```
+
+#### How It Works
+1. Watches all `.py` files in `src/voice_handler/`
+2. Detects changes when you save files
+3. Waits 1.5s for additional changes (debouncing)
+4. Logs: "Code changes detected: consumer.py, broker.py"
+5. Gracefully restarts daemon with fresh code
+6. Queue persists (SQLite file-based, no messages lost)
+
+#### Example Dev Session
+```bash
+# Terminal 1: Start dev mode
+$ uv run python -m voice_handler.queue.daemon --dev
+
+# Output:
+# 🎸 Starting daemon in DEV MODE with auto-reload
+# Watching: /Users/bernard/.claude/hooks/voice_notifications/src/voice_handler
+# Daemon started successfully with PID 12345
+# Auto-reload enabled - watching for code changes
+
+# Terminal 2: Make changes
+$ vim src/voice_handler/queue/consumer.py
+# ... edit and save ...
+
+# Terminal 1: (automatic output)
+# Code changes detected: consumer.py
+# Restarting daemon due to code changes...
+# Daemon stopped successfully
+# Daemon started successfully with PID 12346
+# Daemon reloaded successfully - back to work!
+
+# Terminal 2: Test immediately
+$ uv run python -c "from voice_handler.queue.producer import quick_speak; quick_speak('test')"
+```
+
+#### Stopping Dev Mode
+Press `Ctrl+C` in the terminal running `--dev` mode.
+
+#### Dev Mode Troubleshooting
+
+**Issue: "watchdog not installed" error**
+```bash
+# Check if watchdog is installed
+uv run python -c "import watchdog; print('✓ watchdog OK')"
+
+# If fails, install dev dependencies
+uv sync --extra dev
+```
+
+**Issue: Changes not detected**
+- Verify you're editing files under `src/voice_handler/`
+- Config files (`.env`, `config.json`) are not watched (yet)
+- Wait 1.5s after save for debounce window to complete
+- Check logs: `tail -f /tmp/claude_voice.log`
+
+**Issue: Daemon crashes on restart**
+- Check for syntax errors in your code
+- Fix the error and save again → auto-reload retries automatically
+- Check logs for error details: `tail -f /tmp/claude_voice.log`
+
+**Before vs After:**
+- **Before**: Edit code → Restart Mac (5 minutes) → Test
+- **After**: Edit code → Save (2 seconds) → Test ✨
 
 ## Queue Retry Behavior
 

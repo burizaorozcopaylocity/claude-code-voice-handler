@@ -351,14 +351,14 @@ class QwenContextGenerator:
 
         # Source-specific prompts
         prompts = {
-            "startup": f"Es de {time_context}. Claude Code inicia. Saluda a {self.user_nickname} con energía rockera.",
+            "startup": f"Es de {time_context}. Claude Code inicia. Saluda a {self.user_nickname} con seriedad breve.",
             "resume": f"Claude Code retoma sesión. Saluda a {self.user_nickname} como retorno del intermedio.",
             "clear": f"Sesión reiniciada. Saluda a {self.user_nickname} como roadie preparando nuevo show.",
             "compact": f"Sesión optimizada. Breve confirmación a {self.user_nickname} de que todo sigue activo."
         }
 
         prompt = prompts.get(source, prompts["startup"])
-        response = self._call_llm(prompt, max_words=15)
+        response = "Hola guerrero de galaxias."#self._call_llm(prompt, max_words=15)
 
         if response:
             return response

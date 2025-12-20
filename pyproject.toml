@@ -59,6 +59,7 @@ dev = [
     "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
+    "watchdog>=3.0.0",  # Auto-reload for dev mode
 ]
 qwen = [
     # qwen-code is installed separately via npm

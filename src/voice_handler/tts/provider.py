@@ -74,22 +74,27 @@ class TTSProvider:
             return text
 
         try:
-            prompt = f"""You are an assistant that makes long technical responses more concise for voice output.
-Your task is to rephrase the following text to be shorter and more conversational,
-while preserving all key information. Focus only on the most important details.
-Be brief but clear, as this will be spoken aloud.
+            prompt = f"""Eres un asistente que hace respuestas técnicas largas más concisas para salida de voz.
+Tu tarea es reformular el siguiente texto para que sea más corto y conversacional,
+preservando toda la información clave. Enfócate solo en los detalles más importantes.
+Sé breve pero claro, ya que esto será hablado en voz alta.
 
-IMPORTANT HANDLING FOR CODE BLOCKS:
-- Do not include full code blocks in your response
-- Instead, briefly mention "I've created code for X" or "Here's a script that does Y"
-- For large code blocks, just say something like "I've written a Python function that handles user authentication"
-- DO NOT attempt to read out the actual code syntax
-- Only describe what the code does in 1 sentence maximum
+IMPORTANTE - MANEJO DE BLOQUES DE CÓDIGO:
+- No incluyas bloques de código completos en tu respuesta
+- En su lugar, menciona brevemente "Creé código para X" o "Aquí hay un script que hace Y"
+- Para bloques grandes de código, solo di algo como "Escribí una función Python que maneja autenticación de usuarios"
+- NO intentes leer la sintaxis del código
+- Solo describe qué hace el código en máximo 1 oración
 
-Original text:
+CRÍTICO - IDIOMA:
+- SIEMPRE responde en ESPAÑOL
+- Mantén el mismo idioma del texto original
+- NO traduzcas a inglés
+
+Texto original:
 {text}
 
-Return only the compressed text, without any explanation or introduction."""
+Devuelve solo el texto comprimido en ESPAÑOL, sin explicación ni introducción."""
 
             response = self.openai_client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -152,12 +157,19 @@ Return only the compressed text, without any explanation or introduction."""
             # Get accent config
             accent = self.config.get("voice_settings", {}).get("accent", "mexicano")
 
-            # System prompt for Mexican accent
-            accent_prompt = f"""Eres un locutor de radio mexicano.
-Habla con acento {accent} natural y auténtico.
-Usa entonación mexicana, con las inflexiones características del español de México.
-Habla de forma clara pero con el ritmo y musicalidad del habla mexicana.
-NO traduzcas el texto, solo léelo con acento mexicano."""
+            # System prompt for Mexican accent - VERBATIM reading
+            accent_prompt = f"""Your only task is to read the user's text EXACTLY as written with a {accent} accent.
+
+CRITICAL INSTRUCTIONS:
+- Read ONLY the exact text provided, word-for-word, character-for-character
+- Apply {accent} accent and intonation to your speech
+- Do NOT interpret, paraphrase, summarize, or change any words
+- Do NOT add commentary, explanations, or your own words
+- Do NOT answer questions in the text - just read them aloud
+- Do NOT correct grammar or spelling - read it exactly as written
+- Preserve all punctuation, capitalization, and formatting in your speech rhythm
+
+You are a voice reader, not a conversational assistant. Read the text verbatim with {accent} pronunciation."""
 
             if self.logger:
                 self.logger.log_debug(f"Using gpt-4o-mini-audio-preview with {accent} accent, voice: {voice}")
@@ -354,7 +366,14 @@ NO traduzcas el texto, solo léelo con acento mexicano."""
             message: Message to speak
             voice: Override voice selection
         """
+        # Validate message length (should already be truncated by handler)
+        char_count = len(message)
+        word_count = len(message.split())
+
         if self.logger:
+            self.logger.log_info(
+                f"TTS receiving message: {word_count} words, {char_count} chars"
+            )
             self.logger.log_debug(f"TTS Input (before formatting): '{message}'")
 
         message = self.format_message_for_speech(message)

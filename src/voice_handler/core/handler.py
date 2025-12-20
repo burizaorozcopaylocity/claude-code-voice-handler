@@ -16,6 +16,7 @@ from voice_handler.utils.logger import get_logger
 from voice_handler.utils.dedup import get_deduplicator
 from voice_handler.utils.lock import get_speech_lock
 from voice_handler.utils.transcript import TranscriptReader
+from voice_handler.utils.text import truncate_message
 from voice_handler.core.state import get_state_manager
 from voice_handler.core.session import get_session_voice_manager
 from voice_handler.tts.provider import TTSProvider
@@ -48,6 +49,12 @@ class VoiceNotificationHandler:
         # Load configurations
         self.script_dir = Path(__file__).parent.parent
         self.config = config or self._load_config()
+
+        # Message truncation limits
+        message_limits = self.config.get("message_limits", {})
+        self.max_words = message_limits.get("max_words", 50)
+        self.max_chars = message_limits.get("max_chars", 300)
+        self.truncate_suffix = message_limits.get("truncate_suffix", "...")
 
         # Initialize components
         self.state_manager = get_state_manager()
@@ -155,6 +162,24 @@ class VoiceNotificationHandler:
         if self.deduplicator.is_duplicate(message):
             self.logger.log_debug(f"Skipping duplicate announcement: {message[:50]}...")
             return
+
+        # Truncate message if it exceeds limits
+        original_length = len(message)
+        original_words = len(message.split())
+        message = truncate_message(
+            message,
+            max_words=self.max_words,
+            max_chars=self.max_chars,
+            suffix=self.truncate_suffix
+        )
+
+        if len(message) < original_length:
+            self.logger.log_info(
+                f"Message truncated: {original_words} words ({original_length} chars) "
+                f"-> {len(message.split())} words ({len(message)} chars)"
+            )
+        else:
+            self.logger.log_debug(f"Message within limits: {len(message)} chars, {len(message.split())} words")
 
         # Use session-specific voice if no override provided
         if voice is None:

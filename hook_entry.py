@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+#!/opt/homebrew/bin/python3.14
 # /// script
-# requires-python = ">=3.8"
+# requires-python = ">=3.14"
 # dependencies = [
 #   "openai>=1.0.0",
 #   "sounddevice>=0.4.6",
@@ -19,6 +19,11 @@ while maintaining backward compatibility with existing hooks.
 """
 import sys
 from pathlib import Path
+
+# DEBUG: Confirm hook is executing (visible in Claude output)
+print("🔍 DEBUG: hook_entry.py executing")
+print(f"   Python: {sys.version.split()[0]} at {sys.executable}")
+print(f"   Hook args: {sys.argv[1:]}")
 
 # CRITICAL: Remove current directory to avoid voice_handler.py shadowing the package
 hook_dir = str(Path(__file__).parent)

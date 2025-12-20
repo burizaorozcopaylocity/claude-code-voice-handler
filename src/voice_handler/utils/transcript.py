@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
@@ -56,7 +57,15 @@ class TranscriptReader:
                 pass
         return {
             'transcript_positions': {},
-            'task_context': {}
+            'task_context': {
+                "files_created": [],
+                "files_modified": [],
+                "files_deleted": [],
+                "commands_run": [],
+                "searches_performed": [],
+                "start_time": datetime.now().isoformat(),
+                "operations_count": 0
+            }
         }
 
     def _save_last_position(self, position: int):
