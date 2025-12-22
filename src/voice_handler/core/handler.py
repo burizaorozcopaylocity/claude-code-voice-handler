@@ -77,8 +77,9 @@ class VoiceNotificationHandler:
         # Qwen AI integration
         self.qwen = get_qwen_generator(config=self.config, logger=self.logger)
 
-        # Speech timing control
-        self.min_speech_delay = 1.0
+        # Speech timing control from config
+        timing_config = self.config.get("timing", {})
+        self.min_speech_delay = timing_config.get("min_speech_delay", 1.0)
 
         # Current session tracking - load from state if available
         self.current_session_id: Optional[str] = self.state_manager.current_session_id
@@ -97,9 +98,9 @@ class VoiceNotificationHandler:
             "Notification"
         }
 
-        # Tool announcement rate limiting
+        # Tool announcement rate limiting from config
         self.last_tool_announcement: Dict[str, float] = {}
-        self.min_tool_announcement_interval = 3.0
+        self.min_tool_announcement_interval = timing_config.get("min_tool_announcement_interval", 3.0)
 
         self.logger.log_info("VoiceNotificationHandler ready - Let's rock!")
 

@@ -32,9 +32,6 @@ class QwenContextGenerator:
     Cosmic Eddie's voice comes through here!
     """
 
-    # Maximum messages to keep in history (to avoid token limits)
-    MAX_HISTORY_MESSAGES = 20
-
     def __init__(self, config: Optional[dict] = None, logger=None):
         """
         Initialize context generator.
@@ -45,6 +42,15 @@ class QwenContextGenerator:
         """
         self.config = config or {}
         self.logger = logger
+
+        # Load config values for LLM behavior
+        history_config = self.config.get("history", {})
+        self.MAX_HISTORY_MESSAGES = history_config.get("max_llm_history_messages", 20)
+
+        tts_settings = self.config.get("tts_settings", {})
+        self.max_tokens = tts_settings.get("max_tokens_llm", 100)
+        self.temperature = tts_settings.get("llm_temperature", 0.8)
+        self.timeout = tts_settings.get("llm_timeout", 5)
 
         # Check available LLM providers
         self.openai_client = self._init_openai()
@@ -71,11 +77,8 @@ class QwenContextGenerator:
 
     def _get_history_file_path(self) -> Path:
         """Get path for chat history file."""
-        if sys.platform == 'win32':
-            temp_dir = os.environ.get('TEMP', 'C:\\Temp')
-        else:
-            temp_dir = '/tmp'
-        return Path(temp_dir) / 'claude_voice_chat_history.json'
+        from voice_handler.utils.paths import get_paths
+        return get_paths().chat_history
 
     def _load_chat_history(self) -> list:
         """Load chat history from file."""
@@ -196,9 +199,9 @@ class QwenContextGenerator:
             response = self.openai_client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=messages,
-                max_tokens=100,
-                temperature=0.8,
-                timeout=5  # 5 second timeout for speed
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                timeout=self.timeout
             )
 
             result = response.choices[0].message.content.strip()

@@ -28,18 +28,30 @@ class SessionVoiceManager:
     # Available OpenAI TTS voices - our band of vocalists
     VOICES: List[str] = ["nova", "alloy", "echo", "fable", "onyx", "shimmer"]
 
-    # Session expiry time (4 hours) - voices get recycled after intermission
-    SESSION_EXPIRY_SECONDS: int = 4 * 60 * 60
-
-    def __init__(self, storage_path: Optional[str] = None, logger=None):
+    def __init__(self, storage_path: Optional[str] = None, logger=None, config: Optional[Dict] = None):
         """
         Initialize the session voice manager.
 
         Args:
             storage_path: Path to store session-voice mappings
             logger: Logger instance for debugging
+            config: Optional config dict (loaded from config.json if not provided)
         """
         self.logger = logger
+
+        # Load config to get session expiry time
+        if config is None:
+            import json
+            from pathlib import Path as ConfigPath
+            config_path = ConfigPath(__file__).parent.parent.parent / "config.json"
+            if config_path.exists():
+                config = json.loads(config_path.read_text())
+            else:
+                config = {}
+
+        # Get session expiry from config (hours → seconds)
+        session_expiry_hours = config.get("timing", {}).get("session_expiry_hours", 4)
+        self.SESSION_EXPIRY_SECONDS = session_expiry_hours * 60 * 60
 
         if storage_path is None:
             from voice_handler.utils.paths import get_paths
