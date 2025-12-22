@@ -102,20 +102,27 @@ class TestVoiceHandlerE2E:
         # Same message should be blocked
         assert dedup.is_duplicate("Unique message") is True
 
-    def test_rate_limiting_tools(self, handler):
-        """Tool announcements should be rate limited."""
-        # First announcement should pass
-        can_announce_1 = handler.should_announce("PreToolUse", "Read")
+    def test_rate_limiting_tools(self, handler, mock_stdin_data):
+        """Tool announcements should be rate limited (via PreToolUseProcessor)."""
+        # Set up stdin data for PreToolUse
+        tool_stdin = {
+            "tool_name": "Read",
+            "tool_input": {"file_path": "/test/path.py"}
+        }
 
-        # Update announcement time
-        handler.last_tool_announcement["Read"] = time.time()
+        # First announcement should succeed
+        result_1 = handler.process_pre_tool_use(tool_stdin)
+        can_announce_1 = result_1 is not None
 
-        # Immediate second should be blocked
-        can_announce_2 = handler.should_announce("PreToolUse", "Read")
+        # Immediate second should be rate limited (returns None)
+        result_2 = handler.process_pre_tool_use(tool_stdin)
+        can_announce_2 = result_2 is not None
 
         # After waiting, should pass again
-        time.sleep(handler.min_tool_announcement_interval + 0.1)
-        can_announce_3 = handler.should_announce("PreToolUse", "Read")
+        min_interval = handler.config["timing"]["min_tool_announcement_interval"]
+        time.sleep(min_interval + 0.1)
+        result_3 = handler.process_pre_tool_use(tool_stdin)
+        can_announce_3 = result_3 is not None
 
         assert can_announce_1 is True
         assert can_announce_2 is False

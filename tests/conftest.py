@@ -35,15 +35,21 @@ def temp_dir():
 
 @pytest.fixture
 def mock_config():
-    """Provide a mock configuration for testing."""
-    return {
-        "voice_settings": {
+    """Provide a mock configuration for testing (Pydantic-validated)."""
+    from voice_handler.config_schema import VoiceConfig
+
+    # Create config with defaults + test overrides
+    config = VoiceConfig(
+        voice_settings={
             "tts_provider": "system",
             "openai_voice": "nova",
             "user_nickname": "TestRockstar",
             "personality": "rockstar"
         }
-    }
+    )
+
+    # Return as dict for handler compatibility
+    return config.model_dump()
 
 
 @pytest.fixture

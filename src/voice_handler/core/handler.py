@@ -77,30 +77,26 @@ class VoiceNotificationHandler:
         # Qwen AI integration
         self.qwen = get_qwen_generator(config=self.config, logger=self.logger)
 
+        # Initialize processor registry (Strategy Pattern)
+        from voice_handler.core.processors import ProcessorRegistry, ProcessorDependencies
+        deps = ProcessorDependencies(
+            state_manager=self.state_manager,
+            session_voice_manager=self.session_voice_manager,
+            qwen=self.qwen,
+            config=self.config,
+            logger=self.logger
+        )
+        self.registry = ProcessorRegistry(deps)
+
         # Speech timing control from config (validated - no .get() needed)
         timing_config = self.config["timing"]
         self.min_speech_delay = timing_config["min_speech_delay"]
 
-        # Current session tracking - load from state if available
-        self.current_session_id: Optional[str] = self.state_manager.current_session_id
+        # Current session tracking via property (reads from state_manager)
         self.preferred_voice = self.config["voice_settings"]["openai_voice"]
 
-        if self.current_session_id:
-            self.logger.log_debug(f"Loaded session_id from state: {self.current_session_id[:8]}...")
-
-        # Active voice hooks
-        self.active_voice_hooks = {
-            "SessionStart",
-            "UserPromptSubmit",
-            "PreToolUse",
-            "PostToolUse",
-            "Stop",
-            "Notification"
-        }
-
-        # Tool announcement rate limiting from config (validated - no .get() needed)
-        self.last_tool_announcement: Dict[str, float] = {}
-        self.min_tool_announcement_interval = timing_config["min_tool_announcement_interval"]
+        if self.state_manager.current_session_id:
+            self.logger.log_debug(f"Loaded session_id from state: {self.state_manager.current_session_id[:8]}...")
 
         self.logger.log_info("VoiceNotificationHandler ready - Let's rock!")
 
@@ -115,6 +111,11 @@ class VoiceNotificationHandler:
         except Exception as e:
             self.logger.log_error("Config validation failed, using defaults", exception=e)
             return VoiceConfig().model_dump()
+
+    @property
+    def current_session_id(self) -> Optional[str]:
+        """Get current session ID from state manager (for backward compatibility)."""
+        return self.state_manager.current_session_id
 
     def get_session_voice(self) -> str:
         """
@@ -209,319 +210,66 @@ class VoiceNotificationHandler:
             except TimeoutError as e:
                 self.logger.log_warning(f"Could not acquire speech lock: {e}")
 
-    def should_announce(self, hook_type: str, tool_name: Optional[str] = None) -> bool:
+    def process_hook(self, hook_type: str, stdin_data: Optional[Dict[str, Any]]) -> Optional[str]:
         """
-        Determine if this hook should trigger voice announcements.
+        Generic hook processor using Strategy Pattern.
+
+        This is the new unified entry point for all hook processing.
+        Instead of having 6 different methods with duplicated logic,
+        we delegate to the appropriate processor from the registry.
 
         Args:
-            hook_type: Hook type
-            tool_name: Tool name for PreToolUse
-
-        Returns:
-            True if should announce
-        """
-        if hook_type not in self.active_voice_hooks:
-            return False
-
-        if hook_type == "PreToolUse" and tool_name:
-            current_time = time.time()
-            last_time = self.last_tool_announcement.get(tool_name, 0)
-            if current_time - last_time < self.min_tool_announcement_interval:
-                return False
-            if tool_name == "TodoWrite":
-                return True
-
-        return True
-
-    def process_session_start(self, stdin_data: Optional[dict]) -> Optional[str]:
-        """
-        Process SessionStart hook.
-
-        The opening curtain - welcome the audience to the show!
-
-        SessionStart is called when a session begins with data like:
-        {
-            "source": "startup|resume|clear|compact",
-            "session_id": "...",
-            "transcript_path": "...",
-            ...
-        }
-
-        Args:
-            stdin_data: Data from stdin containing source and session_id
-
-        Returns:
-            Contextual greeting message based on session source
-        """
-        if not stdin_data or not isinstance(stdin_data, dict):
-            return None
-
-        session_id = stdin_data.get('session_id')
-        source = stdin_data.get('source', 'startup')
-
-        self.logger.log_debug(
-            f"SessionStart - source: {source}, session_id: {session_id[:8] if session_id else 'None'}..."
-        )
-
-        # Set session ID for voice assignment
-        if session_id:
-            self.current_session_id = session_id
-            self.state_manager.current_session_id = session_id
-            self.state_manager.save_state()
-
-        # Get session voice (will assign new voice if first time)
-        session_voice = self.get_session_voice()
-        self.logger.log_info(
-            f"SessionStart: Session {session_id[:8] if session_id else 'None'}... "
-            f"assigned voice: {session_voice} (source: {source})"
-        )
-
-        # Reset task context for fresh session
-        if source in ['startup', 'clear']:
-            self.state_manager.reset_task_context()
-            self.qwen.clear_history()
-
-        # Generate contextual greeting based on source
-        return self.qwen.generate_session_greeting(source=source)
-
-    def process_user_prompt_submit(self, stdin_data: Optional[dict]) -> Optional[str]:
-        """
-        Process UserPromptSubmit hook.
-
-        The opening act - acknowledge the user's request!
-
-        Args:
+            hook_type: Type of hook (SessionStart, PreToolUse, etc.)
             stdin_data: Data from stdin
 
         Returns:
-            Acknowledgment message
+            Message to speak, or None
         """
-        if not stdin_data or not isinstance(stdin_data, dict):
+        processor = self.registry.get_processor(hook_type)
+
+        if not processor:
+            self.logger.log_warning(f"No processor registered for hook: {hook_type}")
             return None
 
-        session_id = stdin_data.get('session_id')
-        transcript_path = stdin_data.get('transcript_path')
-        user_prompt = (
-            stdin_data.get('prompt') or
-            stdin_data.get('message') or
-            stdin_data.get('content')
-        )
+        # Let processor decide if it should process (rate limiting, filters, etc.)
+        if not processor.should_process(stdin_data):
+            self.logger.log_debug(f"Processor {hook_type} declined to process")
+            return None
 
-        self.logger.log_debug(f"UserPromptSubmit stdin_data keys: {list(stdin_data.keys())}")
+        # Process and return message
+        return processor.process(stdin_data)
 
-        # Set session ID if provided
-        if session_id:
-            self.current_session_id = session_id
-            self.state_manager.current_session_id = session_id
+    # ==================== Backward Compatibility Wrappers ====================
+    # These methods maintain the existing API for CLI compatibility.
+    # They delegate to the new process_hook() method.
 
-        # Get session voice
-        session_voice = self.get_session_voice()
-        self.logger.log_info(
-            f"Session {session_id[:8] if session_id else 'None'}... "
-            f"will use voice: {session_voice}"
-        )
+    def process_session_start(self, stdin_data: Optional[dict]) -> Optional[str]:
+        """Process SessionStart hook (backward compatibility wrapper)."""
+        return self.process_hook("SessionStart", stdin_data)
 
-        # Reset task context and chat history for new prompt
-        self.state_manager.reset_task_context()
-        self.state_manager.initial_summary_announced = False
-        self.state_manager.save_state()
-        self.qwen.clear_history()  # Clear LLM chat history for fresh context
-
-        # Generate personalized acknowledgment with AI
-        # Works with or without transcript_path
-        return self.qwen.generate_acknowledgment(task_description=user_prompt)
+    def process_user_prompt_submit(self, stdin_data: Optional[dict]) -> Optional[str]:
+        """Process UserPromptSubmit hook (backward compatibility wrapper)."""
+        return self.process_hook("UserPromptSubmit", stdin_data)
 
     def process_pre_tool_use(
         self,
         stdin_data: Optional[dict],
-        tool_name: Optional[str]
+        tool_name: Optional[str] = None
     ) -> Optional[str]:
-        """
-        Process PreToolUse hook.
-
-        Announce what tool is about to be used!
-
-        Args:
-            stdin_data: Data from stdin
-            tool_name: Name of the tool
-
-        Returns:
-            Tool announcement message
-        """
-        if tool_name == "TodoWrite":
-            if stdin_data and isinstance(stdin_data, dict):
-                tool_input = stdin_data.get('tool_input', {})
-                if tool_input and 'todos' in tool_input:
-                    new_todos = tool_input['todos']
-                    completed_todos = self.state_manager.detect_completed_todos(new_todos)
-                    if completed_todos:
-                        task = completed_todos[-1]
-                        return self._format_todo_completion(task)
-            return None
-
-        # Update rate limiting timestamp
-        if tool_name:
-            self.last_tool_announcement[tool_name] = time.time()
-
-        # Generate tool announcement with Qwen
-        if stdin_data and isinstance(stdin_data, dict):
-            tool_input = stdin_data.get('tool_input', {})
-            file_path = tool_input.get('file_path')
-            return self.qwen.generate_tool_announcement(tool_name, file_path)
-
-        return None
+        """Process PreToolUse hook (backward compatibility wrapper)."""
+        return self.process_hook("PreToolUse", stdin_data)
 
     def process_post_tool_use(self, stdin_data: Optional[dict]) -> Optional[str]:
-        """
-        Process PostToolUse hook.
-
-        Report on what just happened!
-
-        Args:
-            stdin_data: Data from stdin
-
-        Returns:
-            Status message
-        """
-        if not stdin_data or not isinstance(stdin_data, dict):
-            return None
-
-        tool_name = stdin_data.get('tool_name')
-        session_id = stdin_data.get('session_id')
-        transcript_path = stdin_data.get('transcript_path')
-
-        if not transcript_path:
-            return None
-
-        try:
-            reader = TranscriptReader(transcript_path, session_id=session_id)
-            new_messages = reader.get_messages_since_last_check()
-
-            if new_messages:
-                combined_message = " ".join(new_messages)
-
-                if not self.state_manager.initial_summary_announced:
-                    if len(combined_message) > 600:
-                        combined_message = reader.extract_meaningful_summary(
-                            combined_message, 600, 150
-                        )
-                    self.state_manager.initial_summary_announced = True
-                    self.state_manager.save_state()
-                    return combined_message
-
-                # Check for approval requests
-                for msg in new_messages:
-                    if reader.detect_approval_request(msg):
-                        return self.qwen.generate_approval_request()
-
-                # Regular message handling
-                meaningful_messages = [msg for msg in new_messages if len(msg) > 20]
-                if meaningful_messages:
-                    claude_message = meaningful_messages[-1]
-                    if len(claude_message) > 400:
-                        claude_message = reader.extract_meaningful_summary(
-                            claude_message, 400, 100
-                        )
-                    return claude_message
-
-        except Exception as e:
-            self.logger.log_error("Error processing transcript", exception=e)
-
-        return None
+        """Process PostToolUse hook (backward compatibility wrapper)."""
+        return self.process_hook("PostToolUse", stdin_data)
 
     def process_stop(self, stdin_data: Optional[dict]) -> Optional[str]:
-        """
-        Process Stop hook.
-
-        The encore - summarize what was accomplished!
-
-        Args:
-            stdin_data: Data from stdin
-
-        Returns:
-            Completion message
-        """
-        if stdin_data and isinstance(stdin_data, dict):
-            transcript_path = stdin_data.get('transcript_path')
-            if transcript_path:
-                try:
-                    reader = TranscriptReader(transcript_path)
-                    last_message = reader.get_last_message(max_length=500)
-
-                    if last_message:
-                        files_modified = len(set(
-                            self.state_manager.task_context.get("files_modified", [])
-                        ))
-                        commands_run = len(
-                            self.state_manager.task_context.get("commands_run", [])
-                        )
-                        return self.qwen.generate_completion(
-                            summary=last_message,
-                            files_modified=files_modified,
-                            commands_run=commands_run
-                        )
-                except Exception as e:
-                    self.logger.log_error("Error reading transcript", exception=e)
-
-        # Fallback completion message
-        return self.qwen.generate_completion()
+        """Process Stop hook (backward compatibility wrapper)."""
+        return self.process_hook("Stop", stdin_data)
 
     def process_notification(self, stdin_data: Optional[dict]) -> Optional[str]:
-        """
-        Process Notification hook for permission requests.
-
-        The roadie asking for permission!
-
-        Args:
-            stdin_data: Data from stdin
-
-        Returns:
-            Approval request message
-        """
-        self.logger.log_info("Processing Notification hook", stdin_data=stdin_data)
-
-        message = ""
-        tool_name = None
-        context = None
-
-        if stdin_data and isinstance(stdin_data, dict):
-            message = stdin_data.get('message', '')
-            # Extract tool name if present
-            if "permission to use" in message.lower():
-                parts = message.split("permission to use")
-                if len(parts) > 1:
-                    tool_name = parts[1].strip().split()[0] if parts[1].strip() else None
-            # Use the full message as context for the LLM
-            context = message if message else None
-
-        return self.qwen.generate_approval_request(tool_name=tool_name, context=context)
-
-    def _format_todo_completion(self, task: str) -> str:
-        """
-        Format a todo task completion for announcement.
-
-        Args:
-            task: Task description
-
-        Returns:
-            Formatted completion message
-        """
-        task_lower = task.lower()
-
-        if task_lower.startswith('add '):
-            return f"Added {task[4:]}"
-        elif task_lower.startswith('modify '):
-            return f"Modified {task[7:]}"
-        elif task_lower.startswith('update '):
-            return f"Updated {task[7:]}"
-        elif task_lower.startswith('create '):
-            return f"Created {task[7:]}"
-        elif task_lower.startswith('fix '):
-            return f"Fixed {task[4:]}"
-        elif task_lower.startswith('test '):
-            return f"Tested {task[5:]}"
-        else:
-            return f"Completed: {task}"
+        """Process Notification hook (backward compatibility wrapper)."""
+        return self.process_hook("Notification", stdin_data)
 
 
 # Singleton handler instance
