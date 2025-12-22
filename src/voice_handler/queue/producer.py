@@ -10,6 +10,7 @@ This is what Claude hooks call - fast and non-blocking.
 """
 
 import time
+import threading
 from typing import Optional, Dict, Any
 
 from voice_handler.queue.broker import (
@@ -173,13 +174,19 @@ class QueueProducer:
 
 # Singleton producer instance
 _producer_instance: Optional[QueueProducer] = None
+_producer_lock = threading.Lock()
 
 
 def get_producer(logger=None) -> QueueProducer:
-    """Get or create the queue producer singleton."""
+    """Get or create the queue producer singleton (thread-safe)."""
     global _producer_instance
+    # First check (fast path - no lock)
     if _producer_instance is None:
-        _producer_instance = QueueProducer(logger=logger)
+        # Acquire lock for initialization
+        with _producer_lock:
+            # Double-check after acquiring lock
+            if _producer_instance is None:
+                _producer_instance = QueueProducer(logger=logger)
     return _producer_instance
 
 

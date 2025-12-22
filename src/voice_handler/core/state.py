@@ -29,11 +29,8 @@ class StateManager:
             state_file_path: Path to state file (auto-detected based on OS)
         """
         if state_file_path is None:
-            if sys.platform == 'win32':
-                temp_dir = os.environ.get('TEMP', 'C:\\Temp')
-                state_file_path = os.path.join(temp_dir, 'claude_voice_state.json')
-            else:
-                state_file_path = '/tmp/claude_voice_state.json'
+            from voice_handler.utils.paths import get_paths
+            state_file_path = get_paths().state_storage
 
         self.state_file = Path(state_file_path)
         self.state = self._load_state()

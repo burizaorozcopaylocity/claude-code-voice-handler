@@ -1,12 +1,29 @@
 {
   "queue_settings": {
     "max_retries": 3,
-    "retry_backoff_base": 0.5
+    "retry_backoff_base": 0.5,
+    "consumer_poll_timeout": 1.0
   },
   "message_limits": {
     "max_words": 50,
     "max_chars": 300,
+    "min_chars_for_tts": 3,
+    "min_chars_for_compression": 50,
     "truncate_suffix": "..."
+  },
+  "timing": {
+    "min_speech_delay": 1.0,
+    "min_tool_announcement_interval": 3.0,
+    "session_expiry_hours": 4
+  },
+  "tts_settings": {
+    "openai_speed": 0.95,
+    "max_tokens_llm": 100,
+    "llm_temperature": 0.8,
+    "llm_timeout": 5
+  },
+  "history": {
+    "max_llm_history_messages": 20
   },
   "voice_settings": {
     "tts_provider": "openai",

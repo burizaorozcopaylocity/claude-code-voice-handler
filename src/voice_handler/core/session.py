@@ -42,11 +42,8 @@ class SessionVoiceManager:
         self.logger = logger
 
         if storage_path is None:
-            if sys.platform == 'win32':
-                temp_dir = os.environ.get('TEMP', 'C:\\Temp')
-                storage_path = os.path.join(temp_dir, 'claude_voice_sessions.json')
-            else:
-                storage_path = '/tmp/claude_voice_sessions.json'
+            from voice_handler.utils.paths import get_paths
+            storage_path = get_paths().session_storage
 
         self.storage_path = Path(storage_path)
         self.sessions: Dict[str, Dict[str, Any]] = self._load_sessions()

@@ -36,14 +36,11 @@ class VoiceDaemon:
         """Initialize the daemon manager."""
         self.logger = logger
 
-        # PID file location
-        if sys.platform == 'win32':
-            temp_dir = os.environ.get('TEMP', 'C:\\Temp')
-            self.pid_file = Path(temp_dir) / 'claude_voice_daemon.pid'
-            self.status_file = Path(temp_dir) / 'claude_voice_daemon.status'
-        else:
-            self.pid_file = Path('/tmp/claude_voice_daemon.pid')
-            self.status_file = Path('/tmp/claude_voice_daemon.status')
+        # Get paths from centralized paths module
+        from voice_handler.utils.paths import get_paths
+        paths = get_paths()
+        self.pid_file = paths.daemon_pid
+        self.status_file = paths.daemon_status
 
     def _read_pid(self) -> Optional[int]:
         """Read PID from file."""
@@ -237,7 +234,7 @@ class VoiceDaemon:
                 startupinfo.wShowWindow = 0  # SW_HIDE
 
                 process = subprocess.Popen(
-                    ['python3.14', str(daemon_script), '--worker'],
+                    [sys.executable, str(daemon_script), '--worker'],
                     creationflags=subprocess.CREATE_NEW_CONSOLE,
                     startupinfo=startupinfo,
                     cwd=str(project_dir),
@@ -248,7 +245,7 @@ class VoiceDaemon:
             else:
                 # Unix: fork and daemonize with native Python
                 process = subprocess.Popen(
-                    ['python3.14', str(daemon_script), '--worker'],
+                    [sys.executable, str(daemon_script), '--worker'],
                     start_new_session=True,
                     cwd=str(project_dir),
                     env=env,
@@ -330,7 +327,7 @@ class VoiceDaemon:
                 startupinfo.wShowWindow = 0  # SW_HIDE
 
                 process = subprocess.Popen(
-                    ['python3.14', str(daemon_script), '--dev-background'],
+                    [sys.executable, str(daemon_script), '--dev-background'],
                     creationflags=subprocess.CREATE_NEW_CONSOLE,
                     startupinfo=startupinfo,
                     cwd=str(project_dir),
@@ -341,7 +338,7 @@ class VoiceDaemon:
             else:
                 # Unix: fork and daemonize with native Python in dev mode
                 process = subprocess.Popen(
-                    ['python3.14', str(daemon_script), '--dev-background'],
+                    [sys.executable, str(daemon_script), '--dev-background'],
                     start_new_session=True,
                     cwd=str(project_dir),
                     env=env,
@@ -441,7 +438,7 @@ class VoiceDaemon:
             self.logger.log_info("Starting worker subprocess...")
 
         process = subprocess.Popen(
-            ['python3.14', str(daemon_script), '--worker'],
+            [sys.executable, str(daemon_script), '--worker'],
             cwd=str(project_dir),
             env=env,
             stdout=subprocess.DEVNULL,
@@ -581,7 +578,8 @@ def run_worker():
     except KeyboardInterrupt:
         logger.log_info("Keyboard interrupt received")
     finally:
-        daemon._remove_pid()
+        # NOTE: PID cleanup is handled by parent process in stop()
+        # Worker process should NOT remove PID file it didn't create
         logger.log_info("Voice daemon worker stopped - B.O.!")
 
 

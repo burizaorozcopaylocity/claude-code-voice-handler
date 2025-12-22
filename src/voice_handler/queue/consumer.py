@@ -140,6 +140,26 @@ class QueueConsumer:
 
         return True
 
+    def _should_apply_backoff(self, message: VoiceMessage) -> bool:
+        """Check if message should wait for backoff delay (with jitter)."""
+        retry_count = message.metadata.get('retry_count', 0)
+        if retry_count == 0:
+            return False
+
+        last_retry_time = message.metadata.get('last_retry_time')
+        if not last_retry_time:
+            return False
+
+        backoff_delay = self._calculate_backoff_delay(retry_count)
+        elapsed = time.time() - last_retry_time
+
+        # Add jitter (±10%) to prevent thundering herd
+        import random
+        jitter = backoff_delay * random.uniform(-0.1, 0.1)
+        effective_backoff = backoff_delay + jitter
+
+        return elapsed < effective_backoff
+
     def _consumer_loop(self):
         """Main consumer loop - runs in daemon thread."""
         if self.logger:
@@ -147,8 +167,8 @@ class QueueConsumer:
 
         while self._running:
             try:
-                # Try to get a message from the broker
-                message = self.broker.dequeue(timeout=0.5)
+                # Try to get a message from the broker (longer timeout = less CPU)
+                message = self.broker.dequeue(timeout=1.0)
 
                 if message:
                     # Check for shutdown signal
@@ -158,18 +178,15 @@ class QueueConsumer:
                         self.broker.ack(message)
                         break
 
-                    # Get retry metadata
-                    retry_count = message.metadata.get('retry_count', 0)
-                    last_retry_time = message.metadata.get('last_retry_time')
+                    # Check if message needs backoff delay
+                    if self._should_apply_backoff(message):
+                        # Too soon to retry, put back in queue
+                        self.broker.nack(message)
+                        # Don't spin - wait for next dequeue cycle
+                        continue
 
-                    # Apply exponential backoff if this is a retry
-                    if retry_count > 0 and last_retry_time:
-                        backoff_delay = self._calculate_backoff_delay(retry_count)
-                        elapsed = time.time() - last_retry_time
-                        if elapsed < backoff_delay:
-                            # Too soon to retry, put back in queue
-                            self.broker.nack(message)
-                            continue
+                    # Get retry count for logging
+                    retry_count = message.metadata.get('retry_count', 0)
 
                     # Process the message
                     success, reason = self._process_message(message)
@@ -255,11 +272,17 @@ class QueueConsumer:
 
 # Singleton consumer instance
 _consumer_instance: Optional[QueueConsumer] = None
+_consumer_lock = threading.Lock()
 
 
 def get_consumer(logger=None) -> QueueConsumer:
-    """Get or create the queue consumer singleton."""
+    """Get or create the queue consumer singleton (thread-safe)."""
     global _consumer_instance
+    # First check (fast path - no lock)
     if _consumer_instance is None:
-        _consumer_instance = QueueConsumer(logger=logger)
+        # Acquire lock for initialization
+        with _consumer_lock:
+            # Double-check after acquiring lock
+            if _consumer_instance is None:
+                _consumer_instance = QueueConsumer(logger=logger)
     return _consumer_instance

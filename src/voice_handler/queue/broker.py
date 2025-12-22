@@ -14,6 +14,7 @@ import os
 import sys
 import json
 import time
+import threading
 from pathlib import Path
 from dataclasses import dataclass, asdict
 from typing import Optional, Any, Dict
@@ -119,13 +120,10 @@ class MessageBroker:
         """
         self.logger = logger
 
-        # Determine queue path based on OS
+        # Get queue path from centralized paths module
         if queue_path is None:
-            if sys.platform == 'win32':
-                temp_dir = os.environ.get('TEMP', 'C:\\Temp')
-                queue_path = os.path.join(temp_dir, 'claude_voice_queue')
-            else:
-                queue_path = '/tmp/claude_voice_queue'
+            from voice_handler.utils.paths import get_paths
+            queue_path = get_paths().queue_db
 
         self.queue_path = Path(queue_path)
         self.queue_path.parent.mkdir(parents=True, exist_ok=True)
@@ -269,11 +267,17 @@ class MessageBroker:
 
 # Singleton broker instance
 _broker_instance: Optional[MessageBroker] = None
+_broker_lock = threading.Lock()
 
 
 def get_broker(logger=None) -> MessageBroker:
-    """Get or create the message broker singleton."""
+    """Get or create the message broker singleton (thread-safe)."""
     global _broker_instance
+    # First check (fast path - no lock)
     if _broker_instance is None:
-        _broker_instance = MessageBroker(logger=logger)
+        # Acquire lock for initialization
+        with _broker_lock:
+            # Double-check after acquiring lock
+            if _broker_instance is None:
+                _broker_instance = MessageBroker(logger=logger)
     return _broker_instance

@@ -192,32 +192,31 @@ You are a voice reader, not a conversational assistant. Read the text verbatim w
             import base64
             audio_bytes = base64.b64decode(audio_data)
 
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-                temp_filename = temp_file.name
-                temp_file.write(audio_bytes)
+            # Use TemporaryDirectory for guaranteed cleanup
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_filename = Path(temp_dir) / "speech.wav"
 
-            # Play audio - use afplay on macOS for better background compatibility
-            if platform.system() == 'Darwin':
-                # macOS: use native afplay (works in daemon background)
-                if self.logger:
-                    self.logger.log_debug(f"Playing audio with afplay: {temp_filename}")
-                # Run afplay in foreground and wait for completion
-                result = subprocess.run(['afplay', temp_filename], check=False, capture_output=True, text=True)
-                if self.logger:
-                    if result.returncode != 0:
-                        self.logger.log_error(f"afplay failed with code {result.returncode}: {result.stderr}")
-                    else:
-                        self.logger.log_debug(f"afplay completed successfully (took {result.returncode} seconds)")
-                # Wait a bit before cleanup to ensure audio finished
-                import time
-                time.sleep(0.5)
-                os.unlink(temp_filename)
-            else:
-                # Other platforms: use sounddevice
-                data, samplerate = sf.read(temp_filename)
-                sd.play(data, samplerate)
-                sd.wait()
-                os.unlink(temp_filename)
+                with open(temp_filename, 'wb') as f:
+                    f.write(audio_bytes)
+
+                # Play audio - use afplay on macOS for better background compatibility
+                if platform.system() == 'Darwin':
+                    # macOS: use native afplay (works in daemon background)
+                    if self.logger:
+                        self.logger.log_debug(f"Playing audio with afplay: {temp_filename}")
+                    # Run afplay in foreground and wait for completion
+                    result = subprocess.run(['afplay', str(temp_filename)], check=False, capture_output=True, text=True, timeout=30)
+                    if self.logger:
+                        if result.returncode != 0:
+                            self.logger.log_error(f"afplay failed with code {result.returncode}: {result.stderr}")
+                        else:
+                            self.logger.log_debug(f"afplay completed successfully")
+                else:
+                    # Other platforms: use sounddevice
+                    data, samplerate = sf.read(temp_filename)
+                    sd.play(data, samplerate)
+                    sd.wait()
+                # TemporaryDirectory auto-cleans on exit
 
             if self.logger:
                 self.logger.log_tts_event("OpenAI-Steerable", True, voice=voice, text=message)
@@ -273,34 +272,32 @@ You are a voice reader, not a conversational assistant. Read the text verbatim w
                 speed=0.95,  # Slightly slower for clarity
             )
 
-            # Create temporary file
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-                temp_filename = temp_file.name
-                for chunk in response.iter_bytes():
-                    temp_file.write(chunk)
+            # Use TemporaryDirectory for guaranteed cleanup
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_filename = Path(temp_dir) / "speech.wav"
 
-            # Play audio - use afplay on macOS for better background compatibility
-            if platform.system() == 'Darwin':
-                # macOS: use native afplay (works in daemon background)
-                if self.logger:
-                    self.logger.log_debug(f"Playing audio with afplay: {temp_filename}")
-                # Run afplay in foreground and wait for completion
-                result = subprocess.run(['afplay', temp_filename], check=False, capture_output=True, text=True)
-                if self.logger:
-                    if result.returncode != 0:
-                        self.logger.log_error(f"afplay failed with code {result.returncode}: {result.stderr}")
-                    else:
-                        self.logger.log_debug(f"afplay completed successfully (took {result.returncode} seconds)")
-                # Wait a bit before cleanup to ensure audio finished
-                import time
-                time.sleep(0.5)
-                os.unlink(temp_filename)
-            else:
-                # Other platforms: use sounddevice
-                data, samplerate = sf.read(temp_filename)
-                sd.play(data, samplerate)
-                sd.wait()
-                os.unlink(temp_filename)
+                with open(temp_filename, 'wb') as f:
+                    for chunk in response.iter_bytes():
+                        f.write(chunk)
+
+                # Play audio - use afplay on macOS for better background compatibility
+                if platform.system() == 'Darwin':
+                    # macOS: use native afplay (works in daemon background)
+                    if self.logger:
+                        self.logger.log_debug(f"Playing audio with afplay: {temp_filename}")
+                    # Run afplay in foreground and wait for completion
+                    result = subprocess.run(['afplay', str(temp_filename)], check=False, capture_output=True, text=True, timeout=30)
+                    if self.logger:
+                        if result.returncode != 0:
+                            self.logger.log_error(f"afplay failed with code {result.returncode}: {result.stderr}")
+                        else:
+                            self.logger.log_debug(f"afplay completed successfully")
+                else:
+                    # Other platforms: use sounddevice
+                    data, samplerate = sf.read(temp_filename)
+                    sd.play(data, samplerate)
+                    sd.wait()
+                # TemporaryDirectory auto-cleans on exit
 
             if self.logger:
                 self.logger.log_tts_event("OpenAI", True, voice=voice, text=compressed_message)

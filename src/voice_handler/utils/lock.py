@@ -59,11 +59,8 @@ class SpeechLock:
             timeout: Maximum time to wait for lock
         """
         if lock_file is None:
-            if sys.platform == 'win32':
-                temp_dir = os.environ.get('TEMP', 'C:\\Temp')
-                lock_file = os.path.join(temp_dir, 'claude_voice_speech.lock')
-            else:
-                lock_file = '/tmp/claude_voice_speech.lock'
+            from voice_handler.utils.paths import get_paths
+            lock_file = get_paths().speech_lock
 
         self.lock_file = Path(lock_file)
         self.timeout = timeout
@@ -75,11 +72,8 @@ class SpeechLock:
 
     def _get_time_file(self) -> Path:
         """Get path to last speech time file."""
-        if sys.platform == 'win32':
-            temp_dir = os.environ.get('TEMP', 'C:\\Temp')
-            return Path(temp_dir) / 'claude_voice_last_speech.time'
-        else:
-            return Path('/tmp/claude_voice_last_speech.time')
+        from voice_handler.utils.paths import get_paths
+        return get_paths().last_speech_time
 
     @contextmanager
     def acquire(self, min_spacing: float = 1.0):

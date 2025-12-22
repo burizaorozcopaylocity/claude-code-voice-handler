@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -33,11 +34,8 @@ class VoiceLogger:
         """
         # Determine log file location based on OS
         if log_file is None:
-            if sys.platform == 'win32':
-                temp_dir = os.environ.get('TEMP', 'C:\\Temp')
-                log_file = os.path.join(temp_dir, 'claude_voice.log')
-            else:
-                log_file = '/tmp/claude_voice.log'
+            from voice_handler.utils.paths import get_paths
+            log_file = get_paths().daemon_log
 
         self.log_file = Path(log_file)
         self.debug_mode = debug_mode
@@ -189,13 +187,19 @@ class VoiceLogger:
 
 # Initialize global logger singleton
 _logger_instance = None
+_logger_lock = threading.Lock()
 
 
 def get_logger() -> VoiceLogger:
-    """Get the global logger instance."""
+    """Get the global logger instance (thread-safe)."""
     global _logger_instance
+    # First check (fast path - no lock)
     if _logger_instance is None:
-        _logger_instance = VoiceLogger()
+        # Acquire lock for initialization
+        with _logger_lock:
+            # Double-check after acquiring lock
+            if _logger_instance is None:
+                _logger_instance = VoiceLogger()
     return _logger_instance
 
 

@@ -33,12 +33,9 @@ class TranscriptReader:
         self.transcript_path = Path(transcript_path)
         self.session_id = session_id
 
-        # Determine state file path based on OS
-        if sys.platform == 'win32':
-            temp_dir = os.environ.get('TEMP', 'C:\\Temp')
-            self.state_file = Path(temp_dir) / 'claude_voice_state.json'
-        else:
-            self.state_file = Path('/tmp/claude_voice_state.json')
+        # Get state file path from centralized paths module
+        from voice_handler.utils.paths import get_paths
+        self.state_file = get_paths().state_storage
 
         self.state = self._load_state()
         self.last_positions = self.state.get('transcript_positions', {})
