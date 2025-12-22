@@ -12,15 +12,15 @@ class TestRockPersonality:
     """Tests for the rock personality system."""
 
     def test_personality_system_prompt(self):
-        """Should generate a system prompt with rock personality."""
+        """Should generate a system prompt with professional personality."""
         from voice_handler.ai.prompts import RockPersonality
 
         personality = RockPersonality()
         prompt = personality.get_system_prompt()
 
-        # Should contain rock references
-        assert "Cosmic Eddie" in prompt or "roadie" in prompt.lower()
-        assert "rock" in prompt.lower()
+        # Should contain professional references (updated personality)
+        assert "Tech Advisor" in prompt or "asistente técnico" in prompt.lower()
+        assert "profesional" in prompt.lower() or "professional" in prompt.lower()
 
     def test_personality_tool_metaphors(self):
         """Should provide rock metaphors for tools."""
@@ -47,18 +47,18 @@ class TestRockPersonality:
 
         personality = RockPersonality()
 
-        # With task description
+        # With task description (updated parameter names)
         prompt_with_task = personality.get_acknowledgment_prompt(
-            task_description="Write a function",
-            user_nickname="TestUser"
+            task="Write a function",
+            nickname="TestUser"
         )
         assert "TestUser" in prompt_with_task
         assert "function" in prompt_with_task.lower() or "tarea" in prompt_with_task.lower()
 
         # Without task description
         prompt_without = personality.get_acknowledgment_prompt(
-            task_description=None,
-            user_nickname="Rockstar"
+            task="",
+            nickname="Rockstar"
         )
         assert "Rockstar" in prompt_without
 

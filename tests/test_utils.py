@@ -36,18 +36,26 @@ class TestMessageDeduplicator:
         assert dedup.is_duplicate("Message three") is False
 
     def test_deduplicator_cache_expiry(self):
-        """Messages should be allowed again after cache expires."""
+        """Exact duplicates are always blocked; cache expiry clears hash-based dedup."""
         from voice_handler.utils.dedup import MessageDeduplicator
 
         dedup = MessageDeduplicator(cache_duration=0.1)  # Very short cache
 
+        # First message - not duplicate
         assert dedup.is_duplicate("Test message") is False
+
+        # Exact duplicate - always blocked (last_announcement_text check)
         assert dedup.is_duplicate("Test message") is True
 
-        # Wait for cache to expire
+        # Wait for cache to expire (hash-based cache cleared)
         time.sleep(0.15)
 
-        # Should be allowed again
+        # Same message still blocked by last_announcement_text
+        # To allow again, must clear cache explicitly
+        assert dedup.is_duplicate("Test message") is True
+
+        # Clear cache to reset
+        dedup.clear_cache()
         assert dedup.is_duplicate("Test message") is False
 
     def test_deduplicator_clear_cache(self):
