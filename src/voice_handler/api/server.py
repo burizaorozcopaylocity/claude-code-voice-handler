@@ -156,36 +156,58 @@ async def clear_queue():
 
 @app.get("/api/config")
 async def get_config():
-    """Get current configuration."""
-    if CONFIG_PATH.exists():
-        try:
-            config = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
-            return config
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to read config: {str(e)}")
-    else:
-        return {"voice_settings": {}}
+    """Get current configuration (validated)."""
+    from voice_handler.config import load_config_json
+
+    try:
+        config = load_config_json(fail_on_invalid=False)
+        return config.model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read config: {str(e)}")
 
 
 @app.put("/api/config")
 async def update_config(request: ConfigUpdateRequest):
-    """Update configuration."""
+    """Update configuration with Pydantic validation."""
+    from voice_handler.config import load_config_json, reload_voice_config
+    from voice_handler.config_schema import VoiceConfig
+    from pydantic import ValidationError
+
     try:
         # Load current config
-        config = {}
-        if CONFIG_PATH.exists():
-            config = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
+        current = load_config_json(fail_on_invalid=False)
+        updated_dict = current.model_dump()
 
-        # Update voice settings
+        # Merge updates
         if request.voice_settings:
-            if "voice_settings" not in config:
-                config["voice_settings"] = {}
-            config["voice_settings"].update(request.voice_settings)
+            updated_dict["voice_settings"].update(request.voice_settings)
 
-        # Save config
-        CONFIG_PATH.write_text(json.dumps(config, indent=2), encoding='utf-8')
+        # VALIDATE BEFORE WRITING (CRITICAL!)
+        try:
+            validated = VoiceConfig(**updated_dict)
+        except ValidationError as e:
+            # Return field-level errors to frontend
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "Validation failed",
+                    "fields": e.errors()
+                }
+            )
 
-        return {"status": "updated", "config": config}
+        # Write validated config to disk
+        CONFIG_PATH.write_text(
+            json.dumps(validated.model_dump(), indent=2),
+            encoding='utf-8'
+        )
+
+        # Hot-reload singleton
+        reload_voice_config()
+
+        return {"status": "updated", "config": validated.model_dump()}
+
+    except HTTPException:
+        raise  # Re-raise validation errors
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update config: {str(e)}")
 

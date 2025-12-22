@@ -50,11 +50,11 @@ class VoiceNotificationHandler:
         self.script_dir = Path(__file__).parent.parent
         self.config = config or self._load_config()
 
-        # Message truncation limits
-        message_limits = self.config.get("message_limits", {})
-        self.max_words = message_limits.get("max_words", 50)
-        self.max_chars = message_limits.get("max_chars", 300)
-        self.truncate_suffix = message_limits.get("truncate_suffix", "...")
+        # Message truncation limits (validated config - no .get() needed)
+        message_limits = self.config["message_limits"]
+        self.max_words = message_limits["max_words"]
+        self.max_chars = message_limits["max_chars"]
+        self.truncate_suffix = message_limits["truncate_suffix"]
 
         # Initialize components
         self.state_manager = get_state_manager()
@@ -77,13 +77,13 @@ class VoiceNotificationHandler:
         # Qwen AI integration
         self.qwen = get_qwen_generator(config=self.config, logger=self.logger)
 
-        # Speech timing control from config
-        timing_config = self.config.get("timing", {})
-        self.min_speech_delay = timing_config.get("min_speech_delay", 1.0)
+        # Speech timing control from config (validated - no .get() needed)
+        timing_config = self.config["timing"]
+        self.min_speech_delay = timing_config["min_speech_delay"]
 
         # Current session tracking - load from state if available
         self.current_session_id: Optional[str] = self.state_manager.current_session_id
-        self.preferred_voice = self.config.get("voice_settings", {}).get("openai_voice", "nova")
+        self.preferred_voice = self.config["voice_settings"]["openai_voice"]
 
         if self.current_session_id:
             self.logger.log_debug(f"Loaded session_id from state: {self.current_session_id[:8]}...")
@@ -98,22 +98,23 @@ class VoiceNotificationHandler:
             "Notification"
         }
 
-        # Tool announcement rate limiting from config
+        # Tool announcement rate limiting from config (validated - no .get() needed)
         self.last_tool_announcement: Dict[str, float] = {}
-        self.min_tool_announcement_interval = timing_config.get("min_tool_announcement_interval", 3.0)
+        self.min_tool_announcement_interval = timing_config["min_tool_announcement_interval"]
 
         self.logger.log_info("VoiceNotificationHandler ready - Let's rock!")
 
     def _load_config(self) -> dict:
-        """Load voice configuration from config.json."""
-        config_file = self.script_dir / "config.json"
-        if config_file.exists():
-            try:
-                with open(config_file, 'r') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, IOError):
-                pass
-        return {}
+        """Load voice configuration from config.json with Pydantic validation."""
+        from voice_handler.config import get_voice_config
+        from voice_handler.config_schema import VoiceConfig
+
+        try:
+            config = get_voice_config()
+            return config.model_dump()  # Convert to dict for backward compat
+        except Exception as e:
+            self.logger.log_error("Config validation failed, using defaults", exception=e)
+            return VoiceConfig().model_dump()
 
     def get_session_voice(self) -> str:
         """

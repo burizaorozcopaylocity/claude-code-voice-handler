@@ -534,23 +534,24 @@ def run_worker():
     # - In DEV mode, the --dev-background process owns the PID file
     # Writing here would overwrite the parent's PID, causing issues
 
-    # Load configuration
-    config = {}
-    config_path = Path(__file__).parent.parent.parent.parent / "config.json"
-    if config_path.exists():
-        try:
-            config = json.loads(config_path.read_text(encoding='utf-8'))
-            logger.log_info(f"Loaded config from {config_path}")
-        except Exception as e:
-            logger.log_warning(f"Could not load config: {e}")
+    # Load configuration with FAIL-HARD validation
+    from voice_handler.config import load_config_json
 
-    # Initialize TTS provider with config
+    try:
+        voice_config = load_config_json(fail_on_invalid=True, logger=logger)
+        config = voice_config.model_dump()
+        logger.log_info(f"Config validated successfully: max_retries={voice_config.queue_settings.max_retries}")
+    except Exception as e:
+        logger.log_error("FATAL: Invalid config.json - daemon cannot start", exception=e)
+        print(f"ERROR: Config validation failed: {e}", file=sys.stderr)
+        sys.exit(1)  # Fail hard - do not start with invalid config
+
+    # Initialize TTS provider with validated config
     tts = TTSProvider(config=config, logger=logger)
 
-    # Get queue settings from config
-    queue_config = config.get("queue_settings", {})
-    max_retries = queue_config.get("max_retries", 3)
-    retry_backoff_base = queue_config.get("retry_backoff_base", 0.5)
+    # Get queue settings from validated config (type-safe access)
+    max_retries = voice_config.queue_settings.max_retries
+    retry_backoff_base = voice_config.queue_settings.retry_backoff_base
 
     # Create consumer with TTS callback and retry config
     consumer = QueueConsumer(

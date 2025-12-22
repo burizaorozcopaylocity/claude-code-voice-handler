@@ -39,18 +39,14 @@ class SessionVoiceManager:
         """
         self.logger = logger
 
-        # Load config to get session expiry time
+        # Load validated config to get session expiry time
         if config is None:
-            import json
-            from pathlib import Path as ConfigPath
-            config_path = ConfigPath(__file__).parent.parent.parent / "config.json"
-            if config_path.exists():
-                config = json.loads(config_path.read_text())
-            else:
-                config = {}
+            from voice_handler.config import get_voice_config
+            voice_config = get_voice_config()
+            config = voice_config.model_dump()
 
-        # Get session expiry from config (hours → seconds)
-        session_expiry_hours = config.get("timing", {}).get("session_expiry_hours", 4)
+        # Get session expiry from validated config (hours → seconds)
+        session_expiry_hours = config["timing"]["session_expiry_hours"]
         self.SESSION_EXPIRY_SECONDS = session_expiry_hours * 60 * 60
 
         if storage_path is None:
