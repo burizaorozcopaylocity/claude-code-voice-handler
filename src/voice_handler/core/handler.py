@@ -91,9 +91,20 @@ class VoiceNotificationHandler:
         # Speech timing control from config (validated - no .get() needed)
         timing_config = self.config["timing"]
         self.min_speech_delay = timing_config["min_speech_delay"]
+        self.min_tool_announcement_interval = timing_config["min_tool_announcement_interval"]
 
         # Current session tracking via property (reads from state_manager)
         self.preferred_voice = self.config["voice_settings"]["openai_voice"]
+
+        # Active voice hooks (for backward compatibility with CLI)
+        self.active_voice_hooks = [
+            "SessionStart",
+            "UserPromptSubmit",
+            "PreToolUse",
+            "PostToolUse",
+            "Stop",
+            "Notification"
+        ]
 
         if self.state_manager.current_session_id:
             self.logger.log_debug(f"Loaded session_id from state: {self.state_manager.current_session_id[:8]}...")
@@ -116,6 +127,31 @@ class VoiceNotificationHandler:
     def current_session_id(self) -> Optional[str]:
         """Get current session ID from state manager (for backward compatibility)."""
         return self.state_manager.current_session_id
+
+    def should_announce(self, hook_type: str, tool_name: Optional[str] = None) -> bool:
+        """
+        Determine if this hook should trigger voice announcements.
+
+        Backward compatibility method for CLI integration.
+
+        Args:
+            hook_type: Hook type
+            tool_name: Tool name for PreToolUse
+
+        Returns:
+            True if should announce
+        """
+        if hook_type not in self.active_voice_hooks:
+            return False
+
+        # For PreToolUse, delegate to processor's should_process
+        if hook_type == "PreToolUse" and tool_name:
+            processor = self.registry.get_processor("PreToolUse")
+            if processor:
+                stdin_data = {"tool_name": tool_name}
+                return processor.should_process(stdin_data)
+
+        return True
 
     def get_session_voice(self) -> str:
         """
