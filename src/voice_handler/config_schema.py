@@ -108,21 +108,20 @@ class VoiceConfig(BaseModel):
         description="Transition phrases for task switching"
     )
 
-    @model_validator(mode='after')
-    def validate_personality_exists(self) -> 'VoiceConfig':
-        """
-        Cross-field validator: Ensure selected personality exists in personality_modes.
-
-        This prevents runtime errors from referencing non-existent personalities.
-        """
-        if self.personality_modes and self.voice_settings.personality:
-            if self.voice_settings.personality not in self.personality_modes:
-                available = list(self.personality_modes.keys())
-                raise ValueError(
-                    f"personality '{self.voice_settings.personality}' not found in personality_modes. "
-                    f"Available personalities: {available}"
-                )
-        return self
+    # Validator removed - personality_modes no longer used (delegated to prompts.py)
+    # @model_validator(mode='after')
+    # def validate_personality_exists(self) -> 'VoiceConfig':
+    #     """
+    #     Cross-field validator: Ensure selected personality exists in personality_modes.
+    #     """
+    #     if self.personality_modes and self.voice_settings.personality:
+    #         if self.voice_settings.personality not in self.personality_modes:
+    #             available = list(self.personality_modes.keys())
+    #             raise ValueError(
+    #                 f"personality '{self.voice_settings.personality}' not found in personality_modes. "
+    #                 f"Available personalities: {available}"
+    #             )
+    #     return self
 
     model_config = ConfigDict(
         extra="allow",  # Forward compatibility: allow unknown fields

@@ -109,8 +109,15 @@ class PreToolUseProcessor(HookProcessor):
         tool_input = stdin_data.get('tool_input', {})
         file_path = tool_input.get('file_path')
 
-        # Generate tool announcement
-        return self.qwen.generate_tool_announcement(tool_name, file_path)
+        # Generate tool announcement with project context
+        session_id = self.extract_session_id(stdin_data)
+        project_name = self.get_project_name(session_id)
+        return self.qwen.generate_tool_announcement(
+            tool_name,
+            file_path,
+            context=None,
+            project_name=project_name
+        )
 
     def _process_todo_write(self, stdin_data: Dict[str, Any]) -> Optional[str]:
         """

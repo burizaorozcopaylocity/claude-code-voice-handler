@@ -41,14 +41,18 @@ class StopProcessor(HookProcessor):
         Returns:
             Task completion summary from Qwen
         """
+        # Extract session ID and project name for context
+        session_id = self.extract_session_id(stdin_data) if stdin_data else None
+        project_name = self.get_project_name(session_id)
+
         if not stdin_data or not isinstance(stdin_data, dict):
             # Fallback completion without transcript
-            return self.qwen.generate_completion()
+            return self.qwen.generate_completion(project_name=project_name)
 
         transcript_path = stdin_data.get('transcript_path')
         if not transcript_path:
             # No transcript available, use fallback
-            return self.qwen.generate_completion()
+            return self.qwen.generate_completion(project_name=project_name)
 
         try:
             # Read last message from transcript
@@ -64,15 +68,16 @@ class StopProcessor(HookProcessor):
                     self.state_manager.task_context.get("commands_run", [])
                 )
 
-                # Generate completion with stats
+                # Generate completion with stats and project context
                 return self.qwen.generate_completion(
                     summary=last_message,
                     files_modified=files_modified,
-                    commands_run=commands_run
+                    commands_run=commands_run,
+                    project_name=project_name
                 )
 
         except Exception as e:
             self.logger.log_error("Error reading transcript", exception=e)
 
         # Fallback completion message
-        return self.qwen.generate_completion()
+        return self.qwen.generate_completion(project_name=project_name)

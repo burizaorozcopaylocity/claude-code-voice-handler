@@ -144,3 +144,25 @@ class HookProcessor(ABC):
             )
 
             self.state_manager.save_state()
+
+    def get_project_name(self, session_id: Optional[str] = None) -> Optional[str]:
+        """
+        Get project name for the current or specified session.
+
+        Args:
+            session_id: Session ID (uses current_session_id if not provided)
+
+        Returns:
+            Project name if available, None otherwise
+        """
+        target_session = session_id or self.state_manager.current_session_id
+        if not target_session:
+            return None
+
+        # Get project name from session data
+        if target_session in self.session_voice_manager.sessions:
+            project_name = self.session_voice_manager.sessions[target_session].get('project_name')
+            if project_name and project_name != 'Unknown':
+                return project_name
+
+        return None

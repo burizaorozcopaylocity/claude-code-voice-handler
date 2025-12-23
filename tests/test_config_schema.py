@@ -235,20 +235,14 @@ class TestVoiceConfig:
         assert config.voice_settings.personality == "casual"
 
     def test_personality_not_found_raises_error(self):
-        """personality inexistente debe raise ValidationError."""
-        with pytest.raises(ValidationError) as exc_info:
-            VoiceConfig(
-                voice_settings=VoiceSettings(personality="nonexistent"),
-                personality_modes={
-                    "casual": {"greetings": ["Hey"]},
-                    "friendly_professional": {"greetings": ["Hello"]}
-                }
-            )
-
-        error_msg = str(exc_info.value)
-        assert "personality 'nonexistent' not found" in error_msg
-        assert "casual" in error_msg
-        assert "friendly_professional" in error_msg
+        """personality validation removed - delegated to prompts.py."""
+        # No longer raises ValidationError - personality_modes no longer used
+        config = VoiceConfig(
+            voice_settings=VoiceSettings(personality="nonexistent"),
+            personality_modes={}  # Empty dict - no longer validated
+        )
+        # Config loads successfully - personality handled by RockPersonality
+        assert config.voice_settings.personality == "nonexistent"
 
     def test_empty_personality_modes_skips_validation(self):
         """Si personality_modes está vacío, no valida."""

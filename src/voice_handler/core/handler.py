@@ -99,11 +99,7 @@ class VoiceNotificationHandler:
         # Active voice hooks (for backward compatibility with CLI)
         self.active_voice_hooks = [
             "SessionStart",
-            "UserPromptSubmit",
-            "PreToolUse",
-            "PostToolUse",
-            "Stop",
-            "Notification"
+            "Stop"
         ]
 
         if self.state_manager.current_session_id:

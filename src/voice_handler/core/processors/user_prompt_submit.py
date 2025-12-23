@@ -79,4 +79,8 @@ class UserPromptSubmitProcessor(HookProcessor):
 
         # Generate personalized acknowledgment with AI
         # Works with or without user_prompt
-        return self.qwen.generate_acknowledgment(task_description=user_prompt)
+        project_name = self.get_project_name(session_id)
+        return self.qwen.generate_acknowledgment(
+            task_description=user_prompt,
+            project_name=project_name
+        )

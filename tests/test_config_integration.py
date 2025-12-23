@@ -98,24 +98,21 @@ class TestSingletonBehavior:
 
 
 class TestPersonalityValidation:
-    """Test cross-field validation (personality must exist)."""
+    """Test personality config (validation removed - delegated to prompts.py)."""
 
     def test_personality_validation_with_temp_config(self):
-        """personality inexistente debe fallar en validación."""
+        """personality no se valida más - personality_modes removido del config."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             f.write('''{
                 "voice_settings": {"personality": "nonexistent"},
-                "personality_modes": {
-                    "friendly_professional": {},
-                    "casual": {}
-                }
+                "personality_modes": {}
             }''')
             temp_path = Path(f.name)
 
         try:
-            with pytest.raises(ValidationError) as exc_info:
-                load_config_json(temp_path, fail_on_invalid=True)
-
-            assert "personality 'nonexistent' not found" in str(exc_info.value)
+            # Should load successfully without validation error
+            config = load_config_json(temp_path, fail_on_invalid=True)
+            assert config.voice_settings.personality == "nonexistent"
+            # Personality validation delegated to prompts.py RockPersonality
         finally:
             temp_path.unlink()

@@ -323,10 +323,7 @@ class QwenContextGenerator:
             "noche"
         )
 
-        prompt = (
-            f"Saluda a {self.user_nickname} de forma rockera. "
-            f"Es de {time_context}. Usa referencia musical."
-        )
+        prompt = f"Saludo profesional {time_context} a {self.user_nickname}."
 
         response = self._call_llm(prompt, max_words=15)
         if response:
@@ -334,12 +331,13 @@ class QwenContextGenerator:
         # Fallback: usar saludo pre-definido de RockPersonality
         return self.rock_personality.get_greeting(time_context, self.user_nickname)
 
-    def generate_session_greeting(self, source: str = "startup") -> str:
+    def generate_session_greeting(self, source: str = "startup", project_name: Optional[str] = None) -> str:
         """
         Generate contextual greeting for SessionStart hook.
 
         Args:
             source: Session start source type (startup|resume|clear|compact)
+            project_name: Name of the project (optional)
 
         Returns:
             Contextual greeting message based on source
@@ -352,16 +350,25 @@ class QwenContextGenerator:
             "noche"
         )
 
-        # Source-specific prompts
-        prompts = {
-            "startup": f"Es de {time_context}. Claude Code inicia. Saluda a {self.user_nickname} con seriedad breve.",
-            "resume": f"Claude Code retoma sesión. Saluda a {self.user_nickname} como retorno del intermedio.",
-            "clear": f"Sesión reiniciada. Saluda a {self.user_nickname} como roadie preparando nuevo show.",
-            "compact": f"Sesión optimizada. Breve confirmación a {self.user_nickname} de que todo sigue activo."
-        }
+        # Source-specific prompts with project context
+        if project_name:
+            prompts = {
+                "startup": f"Sesión inicio en proyecto {project_name}. Saludo a {self.user_nickname}.",
+                "resume": f"Sesión retomada en {project_name}. Saludo a {self.user_nickname}.",
+                "clear": f"Sesión reiniciada en {project_name}. Saludo a {self.user_nickname}.",
+                "compact": f"Sesión optimizada en {project_name}. Confirma a {self.user_nickname}."
+            }
+        else:
+            # Generic prompts without project
+            prompts = {
+                "startup": f"Sesión inicio. Saludo a {self.user_nickname}.",
+                "resume": f"Sesión retomada. Saludo a {self.user_nickname}.",
+                "clear": f"Sesión reiniciada. Saludo a {self.user_nickname}.",
+                "compact": f"Sesión optimizada. Confirma a {self.user_nickname}."
+            }
 
         prompt = prompts.get(source, prompts["startup"])
-        response = "Hola guerrero de galaxias."#self._call_llm(prompt, max_words=15)
+        response = self._call_llm(prompt, max_words=15)
 
         if response:
             return response
@@ -369,7 +376,7 @@ class QwenContextGenerator:
         # Fallback: use existing greeting method
         return self.generate_greeting(hour=hour)
 
-    def generate_acknowledgment(self, task_description: Optional[str] = None) -> str:
+    def generate_acknowledgment(self, task_description: Optional[str] = None, project_name: Optional[str] = None) -> str:
         """
         Generate acknowledgment when user submits a prompt.
 
@@ -377,13 +384,15 @@ class QwenContextGenerator:
 
         Args:
             task_description: Brief description of what was asked
+            project_name: Name of the project (optional)
 
         Returns:
             Contextual acknowledgment
         """
         prompt = self.rock_personality.get_acknowledgment_prompt(
             task_description,
-            self.user_nickname
+            self.user_nickname,
+            project_name
         )
 
         response = self._call_llm(prompt, max_words=20)
@@ -396,7 +405,8 @@ class QwenContextGenerator:
         self,
         tool_name: str,
         file_path: Optional[str] = None,
-        context: Optional[str] = None
+        context: Optional[str] = None,
+        project_name: Optional[str] = None
     ) -> str:
         """
         Generate announcement for tool usage.
@@ -405,17 +415,25 @@ class QwenContextGenerator:
             tool_name: Name of the tool being used
             file_path: File being operated on
             context: Additional context
+            project_name: Name of the project (optional)
 
         Returns:
             Contextual tool announcement
         """
         metaphor = self.rock_personality.get_tool_metaphor(tool_name)
 
-        if file_path:
-            filename = Path(file_path).name
-            prompt = f"Claude va a {metaphor} el archivo {filename}. Anuncia brevemente."
+        if project_name:
+            if file_path:
+                filename = Path(file_path).name
+                prompt = f"{metaphor} {filename} en proyecto {project_name}."
+            else:
+                prompt = f"{metaphor} en {project_name}."
         else:
-            prompt = f"Claude va a {metaphor}. Anuncia brevemente."
+            if file_path:
+                filename = Path(file_path).name
+                prompt = f"{metaphor} {filename}."
+            else:
+                prompt = f"{metaphor}."
 
         response = self._call_llm(prompt, max_words=15)
         return response or f"{metaphor.capitalize()}..."
@@ -424,7 +442,8 @@ class QwenContextGenerator:
         self,
         summary: Optional[str] = None,
         files_modified: int = 0,
-        commands_run: int = 0
+        commands_run: int = 0,
+        project_name: Optional[str] = None
     ) -> str:
         """
         Generate completion message when task is done.
@@ -435,10 +454,14 @@ class QwenContextGenerator:
             summary: Summary of what was done
             files_modified: Number of files modified
             commands_run: Number of commands run
+            project_name: Project name (optional)
 
         Returns:
             Contextual completion message
         """
+        # Add project context if available
+        project_context = f" en proyecto {project_name}" if project_name else ""
+
         context_parts = []
         if files_modified > 0:
             context_parts.append(f"modifique {files_modified} archivos")
@@ -446,16 +469,13 @@ class QwenContextGenerator:
             context_parts.append(f"ejecute {commands_run} comandos")
 
         if summary:
-            context = f"Termine la tarea: {summary[:100]}."
+            context = f"Termine la tarea{project_context}: {summary[:100]}."
         elif context_parts:
-            context = f"Termine. {', '.join(context_parts)}."
+            context = f"Termine{project_context}. {', '.join(context_parts)}."
         else:
-            context = "Termine la tarea."
+            context = f"Termine la tarea{project_context}."
 
-        prompt = (
-            f"{context} Anuncialo a {self.user_nickname} "
-            f"con una frase de encore rockero."
-        )
+        prompt = f"Tarea finalizada. Confirma a {self.user_nickname}."
 
         response = self._call_llm(prompt, max_words=20)
         if response:
@@ -466,7 +486,8 @@ class QwenContextGenerator:
     def generate_approval_request(
         self,
         tool_name: Optional[str] = None,
-        context: Optional[str] = None
+        context: Optional[str] = None,
+        project_name: Optional[str] = None
     ) -> str:
         """
         Generate message when Claude needs user approval.
@@ -476,14 +497,18 @@ class QwenContextGenerator:
         Args:
             tool_name: Tool requiring approval
             context: Full context of what needs approval (the notification message)
+            project_name: Project name (optional)
 
         Returns:
             Contextual approval request
         """
+        # Add project context if available
+        project_context = f" en proyecto {project_name}" if project_name else ""
+
         if context:
             # Use the full context to generate a meaningful message
             prompt = (
-                f"Claude necesita aprobación de {self.user_nickname}. "
+                f"Claude necesita aprobación de {self.user_nickname}{project_context}. "
                 f"El mensaje dice: '{context}'. "
                 f"Resume brevemente QUÉ necesita aprobar (archivo, comando, etc) "
                 f"en máximo 15 palabras con tu estilo rockero."
@@ -491,11 +516,11 @@ class QwenContextGenerator:
         elif tool_name:
             prompt = (
                 f"El roadie necesita permiso de {self.user_nickname} "
-                f"para usar {tool_name}. Pidelo de forma breve pero urgente."
+                f"para usar {tool_name}{project_context}. Pidelo de forma breve pero urgente."
             )
         else:
             prompt = (
-                f"Hey {self.user_nickname}, el roadie necesita tu atencion! "
+                f"Hey {self.user_nickname}, el roadie necesita tu atencion{project_context}! "
                 f"Hay algo que aprobar."
             )
 

@@ -105,19 +105,12 @@ El usuario es {nickname}. Dirígete a él de forma profesional.
         "Operación finalizada.",
         "Proceso ejecutado correctamente.",
         "Implementación completada.",
-        "Ejecución finalizada sin errores.",
-        "Tarea procesada satisfactoriamente.",
-        "Operación concluida.",
-        "Proceso terminado correctamente.",
     ]
 
     # Error handling messages
     ERROR_PHRASES: List[str] = [
         "Error detectado. Procesando solución.",
-        "Inconveniente identificado. Ajustando.",
         "Problema encontrado. Corrigiendo.",
-        "Error capturado. Implementando fix.",
-        "Fallo detectado. Aplicando corrección.",
         "Excepción manejada. Continuando operación.",
     ]
 
@@ -135,9 +128,6 @@ El usuario es {nickname}. Dirígete a él de forma profesional.
         "Entendido, {nickname}. Procesando solicitud.",
         "Confirmado, {nickname}. Iniciando operación.",
         "Recibido, {nickname}. Claude procederá.",
-        "Registrado, {nickname}. En ejecución.",
-        "Aceptado, {nickname}. Tarea en proceso.",
-        "Comprendido, {nickname}. Comenzando.",
     ]
 
     # Greeting by time of day
@@ -145,22 +135,18 @@ El usuario es {nickname}. Dirígete a él de forma profesional.
         "madrugada": [
             "Sesión activa, {nickname}. Sistema operativo.",
             "Entorno de desarrollo listo, {nickname}.",
-            "Plataforma iniciada, {nickname}.",
         ],
         "manana": [
             "Buenos días, {nickname}. Sistema disponible.",
             "Entorno activo, {nickname}. Listo para desarrollo.",
-            "Sesión matinal iniciada, {nickname}.",
         ],
         "tarde": [
             "Buenas tardes, {nickname}. Ambiente preparado.",
             "Sistema operativo, {nickname}. Procesando solicitudes.",
-            "Entorno configurado, {nickname}.",
         ],
         "noche": [
             "Buenas noches, {nickname}. Plataforma activa.",
             "Sesión nocturna lista, {nickname}.",
-            "Sistema disponible, {nickname}. En operación.",
         ],
     }
 
@@ -236,22 +222,30 @@ El usuario es {nickname}. Dirígete a él de forma profesional.
         return phrase.format(nickname=nickname)
 
     @classmethod
-    def get_acknowledgment_prompt(cls, task: str, nickname: str = "rockstar") -> str:
+    def get_acknowledgment_prompt(
+        cls,
+        task: str,
+        nickname: str = "rockstar",
+        project_name: Optional[str] = None
+    ) -> str:
         """
         Generate a prompt for Qwen to acknowledge a task.
 
         IMPORTANT: This prompt makes it clear that Qwen should only
         COMMENT on what Claude will do, not execute anything.
+
+        Args:
+            task: Task description
+            nickname: User nickname
+            project_name: Project name (optional)
+
+        Returns:
+            Acknowledgment prompt
         """
-        return f"""
-{nickname} le pidió a Claude Code: "{task[:150]}"
-
-Tu trabajo es SOLO dar una confirmación profesional de 10-15 palabras sobre esta tarea.
-NO ejecutes nada, solo CONFIRMA lo que Claude VA A HACER de manera breve y clara.
-Usa un tono profesional y directo. No uses metáforas ni referencias culturales.
-
-Ejemplo: "Entendido. Claude procederá a implementar la funcionalidad solicitada."
-"""
+        if project_name:
+            return f"Confirma tarea en proyecto {project_name} a {nickname}: {task[:80]}. Max 12 palabras."
+        else:
+            return f"Confirma tarea a {nickname}: {task[:80]}. Max 12 palabras."
 
 
 # Iconic album references for special occasions

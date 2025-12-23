@@ -41,6 +41,10 @@ class NotificationProcessor(HookProcessor):
         if not message:
             return None
 
+        # Extract session ID and project name for context
+        session_id = self.extract_session_id(stdin_data)
+        project_name = self.get_project_name(session_id)
+
         # Extract tool name if this is a permission request
         tool_name = None
         context = message  # Use full message as context
@@ -52,8 +56,9 @@ class NotificationProcessor(HookProcessor):
                 # Extract tool name (first word after "permission to use")
                 tool_name = parts[1].strip().split()[0] if parts[1].strip() else None
 
-        # Generate approval request via Qwen
+        # Generate approval request via Qwen with project context
         return self.qwen.generate_approval_request(
             tool_name=tool_name,
-            context=context
+            context=context,
+            project_name=project_name
         )

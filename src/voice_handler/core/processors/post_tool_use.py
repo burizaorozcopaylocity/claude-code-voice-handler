@@ -70,7 +70,8 @@ class PostToolUseProcessor(HookProcessor):
             # Check for approval requests in messages
             for msg in new_messages:
                 if reader.detect_approval_request(msg):
-                    return self.qwen.generate_approval_request()
+                    project_name = self.get_project_name(session_id)
+                    return self.qwen.generate_approval_request(project_name=project_name)
 
             # Extract meaningful messages (filter out very short ones)
             meaningful_messages = [msg for msg in new_messages if len(msg) > 20]

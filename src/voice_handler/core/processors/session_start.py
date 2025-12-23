@@ -73,5 +73,6 @@ class SessionStartProcessor(HookProcessor):
             self.state_manager.reset_task_context()
             self.qwen.clear_history()
 
-        # Generate contextual greeting based on source
-        return self.qwen.generate_session_greeting(source=source)
+        # Generate contextual greeting based on source with project context
+        project_name = self.get_project_name(session_id)
+        return self.qwen.generate_session_greeting(source=source, project_name=project_name)
