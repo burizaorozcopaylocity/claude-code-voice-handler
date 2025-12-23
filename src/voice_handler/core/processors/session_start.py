@@ -54,7 +54,7 @@ class SessionStartProcessor(HookProcessor):
 
         # Set session ID for voice assignment
         if session_id:
-            self.update_session_state(session_id)
+            self.update_session_state(session_id, stdin_data)
 
             # Get session voice (will assign new voice if first time)
             preferred_voice = self.config["voice_settings"]["openai_voice"]

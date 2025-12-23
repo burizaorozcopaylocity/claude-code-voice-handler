@@ -204,7 +204,7 @@ class TestQueueConsumer:
         # Track processed messages
         processed = []
 
-        def mock_speak(text, voice):
+        def mock_speak(text, voice, session_id=None):
             processed.append((text, voice))
 
         consumer = QueueConsumer(broker=broker, min_speech_delay=0)

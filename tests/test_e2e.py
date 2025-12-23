@@ -224,7 +224,7 @@ class TestAsyncQueueE2E:
         # Track processed messages
         processed = []
 
-        def mock_speak(text, voice):
+        def mock_speak(text, voice, session_id=None):
             processed.append(text)
 
         # Set up producer and consumer

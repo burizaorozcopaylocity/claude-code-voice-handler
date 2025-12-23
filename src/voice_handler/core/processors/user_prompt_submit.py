@@ -59,7 +59,7 @@ class UserPromptSubmitProcessor(HookProcessor):
 
         # Set session ID if provided
         if session_id:
-            self.update_session_state(session_id)
+            self.update_session_state(session_id, stdin_data)
 
             # Log session voice info
             preferred_voice = self.config["voice_settings"]["openai_voice"]
