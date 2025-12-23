@@ -128,6 +128,11 @@ class VoiceNotificationHandler:
         """Get current session ID from state manager (for backward compatibility)."""
         return self.state_manager.current_session_id
 
+    @current_session_id.setter
+    def current_session_id(self, value: Optional[str]):
+        """Set current session ID in state manager (for backward compatibility)."""
+        self.state_manager.current_session_id = value
+
     def should_announce(self, hook_type: str, tool_name: Optional[str] = None) -> bool:
         """
         Determine if this hook should trigger voice announcements.
