@@ -163,7 +163,8 @@ class SessionVoiceManager:
     def get_voice_for_session(
         self,
         session_id: str,
-        preferred_voice: Optional[str] = None
+        preferred_voice: Optional[str] = None,
+        project_name: Optional[str] = None
     ) -> str:
         """
         Get the assigned voice for a session, creating assignment if needed.
@@ -171,6 +172,7 @@ class SessionVoiceManager:
         Args:
             session_id: Claude Code session identifier
             preferred_voice: User's preferred voice from config
+            project_name: Project name extracted from cwd (for prefix)
 
         Returns:
             Voice name for this session
@@ -182,6 +184,11 @@ class SessionVoiceManager:
         if session_id in self.sessions:
             # Update last used time
             self.sessions[session_id]['last_used'] = time.time()
+
+            # Update project name if provided and different
+            if project_name and self.sessions[session_id].get('project_name') != project_name:
+                self.sessions[session_id]['project_name'] = project_name
+
             self._save_sessions()
 
             voice = self.sessions[session_id]['voice']
@@ -196,16 +203,34 @@ class SessionVoiceManager:
         self.sessions[session_id] = {
             'voice': voice,
             'created_at': time.time(),
-            'last_used': time.time()
+            'last_used': time.time(),
+            'project_name': project_name or 'Unknown'
         }
         self._save_sessions()
 
         if self.logger:
+            project_info = f" for project '{project_name}'" if project_name else ""
             self.logger.log_info(
-                f"Session {session_id[:8]}... assigned NEW voice: {voice}"
+                f"Session {session_id[:8]}... assigned NEW voice: {voice}{project_info}"
             )
 
         return voice
+
+    def get_session_prefix(self, session_id: str) -> Optional[str]:
+        """
+        Get the message prefix for a session based on its project name.
+
+        Args:
+            session_id: Claude Code session identifier
+
+        Returns:
+            Message prefix string, or None if session not found
+        """
+        if session_id and session_id in self.sessions:
+            project_name = self.sessions[session_id].get('project_name')
+            if project_name and project_name != 'Unknown':
+                return f"[{project_name}]"
+        return None
 
     def get_active_sessions_info(self) -> Dict[str, Dict[str, Any]]:
         """

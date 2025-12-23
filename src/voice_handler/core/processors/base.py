@@ -113,16 +113,34 @@ class HookProcessor(ABC):
             return None
         return stdin_data.get('session_id')
 
-    def update_session_state(self, session_id: str) -> None:
+    def update_session_state(self, session_id: str, stdin_data: Optional[Dict] = None) -> None:
         """
-        Update state manager with current session ID.
+        Update state manager with current session ID and assign voice with project name.
 
         Common pattern: When we get a session ID, save it to state
-        so it persists across hook calls.
+        so it persists across hook calls. Also extract project name for session prefix.
 
         Args:
             session_id: Session identifier to store
+            stdin_data: Hook data (optional, for extracting project name from cwd)
         """
         if session_id:
             self.state_manager.current_session_id = session_id
+
+            # Extract project name from cwd if available
+            project_name = None
+            if stdin_data and isinstance(stdin_data, dict):
+                cwd = stdin_data.get('cwd')
+                if cwd:
+                    from pathlib import Path
+                    project_name = Path(cwd).name
+
+            # Assign voice with project name for session prefix
+            preferred_voice = self.config["voice_settings"]["openai_voice"]
+            self.session_voice_manager.get_voice_for_session(
+                session_id,
+                preferred_voice=preferred_voice,
+                project_name=project_name
+            )
+
             self.state_manager.save_state()
