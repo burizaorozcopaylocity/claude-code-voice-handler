@@ -524,6 +524,7 @@ def run_worker():
     from voice_handler.queue.broker import get_broker
     from voice_handler.tts.provider import TTSProvider
     from voice_handler.utils.logger import VoiceLogger
+    from voice_handler.core.session import get_session_voice_manager
 
     # Initialize components
     logger = VoiceLogger()
@@ -546,8 +547,11 @@ def run_worker():
         print(f"ERROR: Config validation failed: {e}", file=sys.stderr)
         sys.exit(1)  # Fail hard - do not start with invalid config
 
-    # Initialize TTS provider with validated config
-    tts = TTSProvider(config=config, logger=logger)
+    # Initialize session voice manager for per-session prefixes
+    session_voice_manager = get_session_voice_manager(logger=logger)
+
+    # Initialize TTS provider with validated config and session manager
+    tts = TTSProvider(config=config, logger=logger, session_voice_manager=session_voice_manager)
 
     # Get queue settings from validated config (type-safe access)
     max_retries = voice_config.queue_settings.max_retries
@@ -559,7 +563,7 @@ def run_worker():
         max_retries=max_retries,
         retry_backoff_base=retry_backoff_base,
     )
-    consumer.set_speak_callback(lambda text, voice: tts.speak(text, voice))
+    consumer.set_speak_callback(lambda text, voice, session_id: tts.speak(text, voice, session_id))
 
     # Set up signal handlers
     def handle_signal(signum, frame):

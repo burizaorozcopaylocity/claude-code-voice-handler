@@ -96,8 +96,9 @@ class QueueConsumer:
             if time_since_last < self.min_speech_delay:
                 time.sleep(self.min_speech_delay - time_since_last)
 
-            # Call the TTS provider
-            self.speak_callback(message.text, message.voice)
+            # Call the TTS provider with session_id for per-session prefix
+            session_id = getattr(message, 'session_id', None)
+            self.speak_callback(message.text, message.voice, session_id)
             self._last_speech_time = time.time()
 
             if self.logger:

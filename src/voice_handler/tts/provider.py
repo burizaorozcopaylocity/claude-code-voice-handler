@@ -23,16 +23,18 @@ class TTSProvider:
     The sound engineer who makes sure the voice hits every speaker in the arena!
     """
 
-    def __init__(self, config: Optional[dict] = None, logger=None):
+    def __init__(self, config: Optional[dict] = None, logger=None, session_voice_manager=None):
         """
         Initialize TTS provider with automatic provider chain.
 
         Args:
             config: Voice configuration
             logger: Logger instance
+            session_voice_manager: Session voice manager for per-session prefixes
         """
         self.config = config or {}
         self.logger = logger
+        self.session_voice_manager = session_voice_manager
 
         # Load config values
         message_limits = self.config.get("message_limits", {})
@@ -69,7 +71,7 @@ class TTSProvider:
         message = message.replace('.md', ' markdown file')
         return message
 
-    def speak(self, message: str, voice: Optional[str] = None):
+    def speak(self, message: str, voice: Optional[str] = None, session_id: Optional[str] = None):
         """
         Main speech output method with automatic provider selection.
 
@@ -79,6 +81,7 @@ class TTSProvider:
         Args:
             message: Message to speak
             voice: Override voice selection
+            session_id: Session ID for per-session prefix (optional)
         """
         # Validate message length
         char_count = len(message)
@@ -99,11 +102,22 @@ class TTSProvider:
         # Format message
         message = self.format_message_for_speech(message)
 
-        # Apply message prefix if configured
-        voice_settings = self.config.get("voice_settings", {})
-        message_prefix = voice_settings.get("message_prefix", "")
-        if message_prefix:
-            message = f"{message_prefix} {message}"
+        # Apply per-session prefix if available (takes precedence)
+        prefix_applied = False
+        if session_id and self.session_voice_manager:
+            session_prefix = self.session_voice_manager.get_session_prefix(session_id)
+            if session_prefix:
+                message = f"{session_prefix} {message}"
+                prefix_applied = True
+                if self.logger:
+                    self.logger.log_debug(f"Applied session prefix: {session_prefix}")
+
+        # Apply global message prefix if no session prefix was applied
+        if not prefix_applied:
+            voice_settings = self.config.get("voice_settings", {})
+            message_prefix = voice_settings.get("message_prefix", "")
+            if message_prefix:
+                message = f"{message_prefix} {message}"
 
         if self.logger:
             self.logger.log_debug(f"TTS Input (after formatting): '{message}'")
