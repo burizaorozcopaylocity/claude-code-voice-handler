@@ -26,7 +26,10 @@ class SessionVoiceManager:
     """
 
     # Available OpenAI TTS voices - our band of vocalists
-    VOICES: List[str] = ["nova", "alloy", "echo", "fable", "onyx", "shimmer"]
+    # Organized by gender for alternating assignment
+    FEMALE_VOICES: List[str] = ["nova", "shimmer", "alloy"]  # alloy is neutral but leans feminine
+    MALE_VOICES: List[str] = ["echo", "fable", "onyx"]
+    VOICES: List[str] = ["nova", "alloy", "echo", "fable", "onyx", "shimmer"]  # kept for compatibility
 
     def __init__(self, storage_path: Optional[str] = None, logger=None, config: Optional[Dict] = None):
         """
@@ -113,7 +116,8 @@ class SessionVoiceManager:
         """
         Get the next available voice that's not in use.
 
-        Like finding the lead singer who isn't already booked!
+        Alternates between feminine and masculine voices for variety.
+        Like building a diverse lineup for the concert!
 
         Args:
             preferred_voice: User's preferred voice from config
@@ -127,10 +131,23 @@ class SessionVoiceManager:
         if preferred_voice and preferred_voice not in used_voices:
             return preferred_voice
 
-        # Find first unused voice
-        for voice in self.VOICES:
-            if voice not in used_voices:
-                return voice
+        # Determine what gender to use next (alternate based on session count)
+        session_count = len(self.sessions)
+        use_female = session_count % 2 == 0  # Even sessions = female, odd = male
+
+        # Get available voices of the preferred gender
+        if use_female:
+            primary_voices = [v for v in self.FEMALE_VOICES if v not in used_voices]
+            fallback_voices = [v for v in self.MALE_VOICES if v not in used_voices]
+        else:
+            primary_voices = [v for v in self.MALE_VOICES if v not in used_voices]
+            fallback_voices = [v for v in self.FEMALE_VOICES if v not in used_voices]
+
+        # Try primary gender first, then fallback
+        if primary_voices:
+            return primary_voices[0]
+        elif fallback_voices:
+            return fallback_voices[0]
 
         # All voices in use - find least recently used session's voice
         if self.sessions:
@@ -141,7 +158,7 @@ class SessionVoiceManager:
             return oldest_session[1]['voice']
 
         # Default fallback
-        return preferred_voice or self.VOICES[0]
+        return preferred_voice or self.FEMALE_VOICES[0]
 
     def get_voice_for_session(
         self,
