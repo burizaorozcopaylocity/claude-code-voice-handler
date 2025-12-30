@@ -17,11 +17,16 @@ import sys
 import time
 import signal
 import subprocess
-import fcntl
 import errno
 from pathlib import Path
 from typing import Optional
 import json
+
+# Conditional import for Unix-only module
+if sys.platform != 'win32':
+    import fcntl
+else:
+    fcntl = None  # Not available on Windows
 
 
 class VoiceDaemon:

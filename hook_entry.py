@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 # DEBUG: Confirm hook is executing (visible in Claude output)
-print("🔍 DEBUG: hook_entry.py executing")
+print("DEBUG: hook_entry.py executing")
 print(f"   Python: {sys.version.split()[0]} at {sys.executable}")
 print(f"   Hook args: {sys.argv[1:]}")
 

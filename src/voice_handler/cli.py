@@ -12,6 +12,12 @@ import sys
 import json
 from typing import Optional, Tuple, Dict, Any
 
+# Configure UTF-8 encoding for Windows compatibility
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 from voice_handler.utils.logger import get_logger
 from voice_handler.core.handler import get_handler
 
@@ -134,16 +140,17 @@ Hooks:
         has_message=bool(args.message)
     )
 
-    # Determine async mode: CLI flag overrides env var
-    # Priority: 1) --sync flag, 2) USE_ASYNC_QUEUE env var, 3) default to async
+    # Determine async mode: CLI flag overrides config
+    # Priority: 1) --sync flag, 2) USE_ASYNC_QUEUE from config (which reads .env), 3) default to false
     if args.sync:
         use_async = False
         logger.log_info("Using SYNC mode (from --sync flag)")
     else:
-        # Read from environment variable (os already imported above)
-        env_async = os.getenv('USE_ASYNC_QUEUE', 'true').lower()
-        use_async = env_async in ('true', '1', 'yes')
-        logger.log_info(f"Using {'ASYNC' if use_async else 'SYNC'} mode (from USE_ASYNC_QUEUE={env_async})")
+        # Read from config (which loads .env file correctly)
+        from voice_handler.config import VoiceHandlerConfig
+        config_obj = VoiceHandlerConfig()
+        use_async = config_obj.runtime.use_async_queue
+        logger.log_info(f"Using {'ASYNC' if use_async else 'SYNC'} mode (from config: USE_ASYNC_QUEUE={use_async})")
 
     handler = get_handler(use_async=use_async)
 

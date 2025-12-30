@@ -73,7 +73,7 @@ class RuntimeConfig:
         default_factory=lambda: os.getenv("VOICE_ENABLED", "true").lower() == "true"
     )
     use_async_queue: bool = field(
-        default_factory=lambda: os.getenv("USE_ASYNC_QUEUE", "true").lower() == "true"
+        default_factory=lambda: os.getenv("USE_ASYNC_QUEUE", "false").lower() == "true"
     )
     debug_mode: bool = field(
         default_factory=lambda: os.getenv("DEBUG_MODE", "false").lower() == "true"

@@ -475,9 +475,9 @@ class QwenContextGenerator:
         else:
             context = f"Termine la tarea{project_context}."
 
-        prompt = f"Tarea finalizada. Confirma a {self.user_nickname}."
+        prompt = f"{context} Resume brevemente lo realizado para {self.user_nickname} con contexto técnico específico."
 
-        response = self._call_llm(prompt, max_words=20)
+        response = self._call_llm(prompt, max_words=35)
         if response:
             return response
         # Fallback: usar frase de completion pre-definida
@@ -508,23 +508,24 @@ class QwenContextGenerator:
         if context:
             # Use the full context to generate a meaningful message
             prompt = (
-                f"Claude necesita aprobación de {self.user_nickname}{project_context}. "
-                f"El mensaje dice: '{context}'. "
-                f"Resume brevemente QUÉ necesita aprobar (archivo, comando, etc) "
-                f"en máximo 15 palabras con tu estilo rockero."
+                f"Claude requiere aprobación de {self.user_nickname}{project_context}. "
+                f"Contexto: '{context}'. "
+                f"Explica brevemente y profesionalmente QUÉ específico necesita aprobar "
+                f"(qué archivo, qué comando, para qué propósito) con detalles técnicos."
             )
         elif tool_name:
             prompt = (
-                f"El roadie necesita permiso de {self.user_nickname} "
-                f"para usar {tool_name}{project_context}. Pidelo de forma breve pero urgente."
+                f"Claude necesita permiso de {self.user_nickname} "
+                f"para usar herramienta {tool_name}{project_context}. "
+                f"Explica profesionalmente para qué la necesita."
             )
         else:
             prompt = (
-                f"Hey {self.user_nickname}, el roadie necesita tu atencion{project_context}! "
-                f"Hay algo que aprobar."
+                f"Claude requiere atención de {self.user_nickname}{project_context}. "
+                f"Notifica profesionalmente que hay una aprobación pendiente."
             )
 
-        response = self._call_llm(prompt, max_words=20)
+        response = self._call_llm(prompt, max_words=35)
         if response:
             return response
         # Fallback: usar frase de approval pre-definida
